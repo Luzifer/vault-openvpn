@@ -1,0 +1,45 @@
+#cloud-config
+
+packages:
+  - openvpn
+
+write_files:
+  - content: |
+      VAULT_ADDR="https://..."
+      PKI_PATH="${VAULT_ADDR}/v1/luzifer_io"
+    path: /etc/script_env
+    owner: root:root
+    permissions: '0600'
+
+  - content: |
+      #!/bin/bash -ex
+      source /etc/script_env
+
+      sed -i 's/#AUTOSTART="all"/AUTOSTART="all"/' /etc/default/openvpn
+      systemctl daemon-reload
+
+      openssl dhparam -out /etc/openvpn/dh2048.pem 2048
+      /usr/local/bin/refresh_crl
+    path: /tmp/setup.sh
+    owner: root:root
+    permissions: '0755'
+
+  - content: |
+      #!/bin/bash -ex
+      source /etc/script_env
+      
+      curl -sSLo /tmp/crl.pem ${PKI_PATH}/crl/pem
+      if ! ( diff -wq /etc/openvpn/crl.pem /tmp/crl.pem ); then
+        mv /tmp/crl.pem /etc/openvpn/crl.pem
+      fi
+    path: /usr/local/bin/refresh_crl
+    owner: root:root
+    permissions: '0755'
+
+  - content: |
+      */5 * * * * root /usr/local/bin/refresh_crl
+    path: /etc/cron.d/openvpn
+    owner: root:root
+
+runcmd:
+  - [ /tmp/setup.sh ]
