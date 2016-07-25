@@ -168,7 +168,7 @@ func revokeOlderCertificate(fqdn string) error {
 		path := strings.Join([]string{strings.Trim(cfg.PKIMountPoint, "/"), "cert", serial.(string)}, "/")
 		cs, err := client.Logical().Read(path)
 		if err != nil {
-			errors.New("Unable to read certificate: " + err.Error())
+			return errors.New("Unable to read certificate: " + err.Error())
 		}
 
 		cn, err := commonNameFromCertificate(cs.Data["certificate"].(string))
@@ -206,7 +206,7 @@ func getCACert() (string, error) {
 	path := strings.Join([]string{strings.Trim(cfg.PKIMountPoint, "/"), "cert", "ca"}, "/")
 	cs, err := client.Logical().Read(path)
 	if err != nil {
-		errors.New("Unable to read certificate: " + err.Error())
+		return errors.New("Unable to read certificate: " + err.Error())
 	}
 
 	return cs.Data["certificate"].(string), nil
