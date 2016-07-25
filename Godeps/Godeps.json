@@ -1,0 +1,94 @@
+{
+	"ImportPath": "github.com/Luzifer/vault-openvpn",
+	"GoVersion": "go1.6",
+	"GodepVersion": "v74",
+	"Deps": [
+		{
+			"ImportPath": "github.com/Luzifer/go_helpers/str",
+			"Comment": "v1.4.0",
+			"Rev": "d76f718bb2d7d043fdf9dfdc01af03f20047432b"
+		},
+		{
+			"ImportPath": "github.com/Luzifer/rconfig",
+			"Comment": "v1.1.0",
+			"Rev": "c27bd3a64b5b19556914d9fec69922cf3852d585"
+		},
+		{
+			"ImportPath": "github.com/fatih/structs",
+			"Rev": "3fe2facc32a7fbde4b29c0f85604dc1dd22836d2"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/errwrap",
+			"Rev": "7554cd9344cec97297fa6649b055a8c98c2a1e55"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/go-cleanhttp",
+			"Rev": "ad28ea4487f05916463e2423a55166280e8254b5"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/go-multierror",
+			"Rev": "d30f09973e19c1dfcd120b2d9c4f168e68d6b5d5"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/go-rootcerts",
+			"Rev": "6bb64b370b90e7ef1fa532be9e591a81c3493e00"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/hcl",
+			"Rev": "9a905a34e6280ce905da1a32344b25e81011197a"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/hcl/hcl/ast",
+			"Rev": "9a905a34e6280ce905da1a32344b25e81011197a"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/hcl/hcl/parser",
+			"Rev": "9a905a34e6280ce905da1a32344b25e81011197a"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/hcl/hcl/scanner",
+			"Rev": "9a905a34e6280ce905da1a32344b25e81011197a"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/hcl/hcl/strconv",
+			"Rev": "9a905a34e6280ce905da1a32344b25e81011197a"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/hcl/hcl/token",
+			"Rev": "9a905a34e6280ce905da1a32344b25e81011197a"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/hcl/json/parser",
+			"Rev": "9a905a34e6280ce905da1a32344b25e81011197a"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/hcl/json/scanner",
+			"Rev": "9a905a34e6280ce905da1a32344b25e81011197a"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/hcl/json/token",
+			"Rev": "9a905a34e6280ce905da1a32344b25e81011197a"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/vault/api",
+			"Comment": "v0.6.0-beta2-24-gf0b06cf",
+			"Rev": "f0b06cf68a3a6d69d0572be23f5035c38d1f3539"
+		},
+		{
+			"ImportPath": "github.com/mitchellh/go-homedir",
+			"Rev": "981ab348d865cf048eb7d17e78ac7192632d8415"
+		},
+		{
+			"ImportPath": "github.com/mitchellh/mapstructure",
+			"Rev": "d2dd0262208475919e1a362f675cfc0e7c10e905"
+		},
+		{
+			"ImportPath": "github.com/spf13/pflag",
+			"Rev": "367864438f1b1a3c7db4da06a2f55b144e6784e0"
+		},
+		{
+			"ImportPath": "gopkg.in/yaml.v2",
+			"Rev": "53feefa2559fb8dfa8d81baad31be332c97d6c77"
+		}
+	]
+}
