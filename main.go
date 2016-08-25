@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"strings"
 	"text/template"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/Luzifer/go_helpers/str"
 	"github.com/Luzifer/rconfig"
-	"github.com/hashicorp/go-rootcerts"
 	"github.com/hashicorp/vault/api"
 	homedir "github.com/mitchellh/go-homedir"
 )
@@ -101,13 +99,8 @@ func main() {
 	var err error
 
 	clientConfig := api.DefaultConfig()
+	clientConfig.ReadEnvironment()
 	clientConfig.Address = cfg.VaultAddress
-
-	tlsConfig := clientConfig.HttpClient.Transport.(*http.Transport).TLSClientConfig
-	err = rootcerts.ConfigureTLS(tlsConfig, nil)
-	if err != nil {
-		log.Fatalf("Could not configure TLS: %s", err)
-	}
 
 	client, err = api.NewClient(clientConfig)
 	if err != nil {
