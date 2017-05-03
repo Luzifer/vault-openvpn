@@ -1,3 +1,7 @@
+# 0.3.0 / 2017-05-03
+
+  * Improve logging output
+
 # 0.2.0 / 2016-08-25
 
   * Add support for self-signed CAs that are in the OS trust store
