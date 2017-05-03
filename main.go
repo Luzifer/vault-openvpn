@@ -2,11 +2,11 @@ package main
 
 import (
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"strings"
 	"text/template"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/Luzifer/go_helpers/str"
 	"github.com/Luzifer/rconfig"
+	log "github.com/Sirupsen/logrus"
 	"github.com/hashicorp/vault/api"
 	homedir "github.com/mitchellh/go-homedir"
 )
@@ -35,7 +36,8 @@ var (
 		AutoRevoke bool          `flag:"auto-revoke" default:"false" description:"Automatically revoke older certificates for this FQDN"`
 		CertTTL    time.Duration `flag:"ttl" default:"8760h" description:"Set the TTL for this certificate"`
 
-		VersionAndExit bool `flag:"version" default:"false" description:"Prints current version and exits"`
+		LogLevel       string `flag:"log-level" default:"info" description:"Log level to use (debug, info, warning, error)"`
+		VersionAndExit bool   `flag:"version" default:"false" description:"Prints current version and exits"`
 	}{}
 
 	version = "dev"
@@ -70,6 +72,12 @@ func init() {
 
 	if err := rconfig.Parse(&cfg); err != nil {
 		log.Fatalf("Unable to parse commandline options: %s", err)
+	}
+
+	if logLevel, err := log.ParseLevel(cfg.LogLevel); err == nil {
+		log.SetLevel(logLevel)
+	} else {
+		log.Fatalf("Unable to interprete log level: %s", err)
 	}
 
 	if cfg.VersionAndExit {
@@ -178,7 +186,20 @@ func revokeOlderCertificate(fqdn string) error {
 			return err
 		}
 
-		log.Printf("Found certificate %s with CN %s", serial, cn)
+		if revokationTime, ok := cs.Data["revocation_time"]; ok {
+			rt, err := revokationTime.(json.Number).Int64()
+			if err == nil && rt < time.Now().Unix() && rt > 0 {
+				log.WithFields(log.Fields{
+					"cn": cn,
+				}).Debug("Found revoked certificate")
+				continue
+			}
+		}
+
+		log.WithFields(log.Fields{
+			"cn":     cn,
+			"serial": serial,
+		}).Info("Found valid certificate")
 
 		if cn == fqdn {
 			path := strings.Join([]string{strings.Trim(cfg.PKIMountPoint, "/"), "revoke"}, "/")
@@ -187,7 +208,10 @@ func revokeOlderCertificate(fqdn string) error {
 			}); err != nil {
 				return errors.New("Revoke of serial " + serial.(string) + " failed: " + err.Error())
 			}
-			log.Printf("Revoked certificate %s", serial)
+			log.WithFields(log.Fields{
+				"cn":     cn,
+				"serial": serial,
+			}).Info("Revoked certificate")
 		}
 	}
 
@@ -228,6 +252,11 @@ func generateCertificate(fqdn string) (*templateVars, error) {
 	if secret.Data == nil {
 		return nil, errors.New("Got no data from backend")
 	}
+
+	log.WithField(log.Fields{
+		"cn":     fqdn,
+		"serial": secret.Data["serial_number"].(string),
+	}).Info("Generated new certificate")
 
 	return &templateVars{
 		Certificate: secret.Data["certificate"].(string),
