@@ -12,17 +12,20 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/Luzifer/go_helpers/str"
 	"github.com/Luzifer/rconfig"
 	log "github.com/Sirupsen/logrus"
 	"github.com/hashicorp/vault/api"
 	homedir "github.com/mitchellh/go-homedir"
+	"github.com/olekukonko/tablewriter"
 )
 
 const (
-	actionRevoke           = "revoke"
+	actionList             = "list"
 	actionMakeClientConfig = "client"
 	actionMakeServerConfig = "server"
+	actionRevoke           = "revoke"
+
+	dateFormat = "2006-01-02 15:04:05 -0700"
 )
 
 var (
@@ -91,17 +94,16 @@ func init() {
 }
 
 func main() {
-	if len(rconfig.Args()) != 3 {
+	if len(rconfig.Args()) < 2 {
 		fmt.Println("Usage: vault-openvpn [options] <action> <FQDN>")
-		fmt.Println("         actions: client / server / revoke")
+		fmt.Println("         actions: client / server / list / revoke")
 		os.Exit(1)
 	}
 
 	action := rconfig.Args()[1]
-	fqdn := rconfig.Args()[2]
-
-	if !str.StringInSlice(action, []string{actionRevoke, actionMakeClientConfig, actionMakeServerConfig}) {
-		log.Fatalf("Unknown action: %s", action)
+	fqdn := ""
+	if len(rconfig.Args()) == 3 {
+		fqdn = rconfig.Args()[2]
 	}
 
 	var err error
@@ -117,36 +119,100 @@ func main() {
 
 	client.SetToken(cfg.VaultToken)
 
-	if cfg.AutoRevoke || action == actionRevoke {
+	switch action {
+	case actionRevoke:
 		if err := revokeOlderCertificate(fqdn); err != nil {
 			log.Fatalf("Could not revoke certificate: %s", err)
 		}
+	case actionMakeClientConfig:
+		if err := generateCertificateConfig("client.conf", fqdn); err != nil {
+			log.Fatalf("Unable to generate config file: %s", err)
+		}
+	case actionMakeServerConfig:
+		if err := generateCertificateConfig("server.conf", fqdn); err != nil {
+			log.Fatalf("Unable to generate config file: %s", err)
+		}
+	case actionList:
+		if err := listCertificates(); err != nil {
+			log.Fatalf("Unable to list certificates: %s", err)
+		}
+
+	default:
+		log.Fatalf("Unknown action: %s", action)
+	}
+}
+
+func listCertificates() error {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"FQDN", "Not Before", "Not After", "Serial"})
+	table.SetBorder(false)
+
+	path := strings.Join([]string{strings.Trim(cfg.PKIMountPoint, "/"), "certs"}, "/")
+	secret, err := client.Logical().List(path)
+	if err != nil {
+		return err
 	}
 
-	if action != actionMakeClientConfig && action != actionMakeServerConfig {
-		return
+	if secret.Data == nil {
+		return errors.New("Got no data from backend")
 	}
 
-	tplName := "client.conf"
-	if action == actionMakeServerConfig {
-		tplName = "server.conf"
+	for _, serial := range secret.Data["keys"].([]interface{}) {
+		path := strings.Join([]string{strings.Trim(cfg.PKIMountPoint, "/"), "cert", serial.(string)}, "/")
+		cs, err := client.Logical().Read(path)
+		if err != nil {
+			return errors.New("Unable to read certificate: " + err.Error())
+		}
+
+		cert, err := parseCertificate(cs.Data["certificate"].(string))
+		if err != nil {
+			return err
+		}
+
+		if revokationTime, ok := cs.Data["revocation_time"]; ok {
+			rt, err := revokationTime.(json.Number).Int64()
+			if err == nil && rt < time.Now().Unix() && rt > 0 {
+				// Don't display revoked certs
+				continue
+			}
+		}
+
+		table.Append([]string{
+			cert.Subject.CommonName,
+			cert.NotBefore.Format(dateFormat),
+			cert.NotAfter.Format(dateFormat),
+			serial.(string),
+		})
+	}
+
+	table.Render()
+	return nil
+}
+
+func generateCertificateConfig(tplName, fqdn string) error {
+	if cfg.AutoRevoke {
+		if err := revokeOlderCertificate(fqdn); err != nil {
+			return fmt.Errorf("Could not revoke certificate: %s", err)
+		}
 	}
 
 	caCert, err := getCACert()
 	if err != nil {
-		log.Fatalf("Could not load CA certificate: %s", err)
+		return fmt.Errorf("Could not load CA certificate: %s", err)
 	}
 
 	tplv, err := generateCertificate(fqdn)
 	if err != nil {
-		log.Fatalf("Could not generate new certificate: %s", err)
+		return fmt.Errorf("Could not generate new certificate: %s", err)
 	}
 
 	tplv.CertAuthority = caCert
 
 	if err := renderTemplate(tplName, tplv); err != nil {
-		log.Fatalf("Could not render configuration: %s", err)
+		return fmt.Errorf("Could not render configuration: %s", err)
 	}
+
+	return nil
 }
 
 func renderTemplate(tplName string, tplv *templateVars) error {
@@ -218,9 +284,13 @@ func revokeOlderCertificate(fqdn string) error {
 	return nil
 }
 
-func commonNameFromCertificate(pemString string) (string, error) {
+func parseCertificate(pemString string) (*x509.Certificate, error) {
 	data, _ := pem.Decode([]byte(pemString))
-	cert, err := x509.ParseCertificate(data.Bytes)
+	return x509.ParseCertificate(data.Bytes)
+}
+
+func commonNameFromCertificate(pemString string) (string, error) {
+	cert, err := parseCertificate(pemString)
 	if err != nil {
 		return "", err
 	}
@@ -253,7 +323,7 @@ func generateCertificate(fqdn string) (*templateVars, error) {
 		return nil, errors.New("Got no data from backend")
 	}
 
-	log.WithField(log.Fields{
+	log.WithFields(log.Fields{
 		"cn":     fqdn,
 		"serial": secret.Data["serial_number"].(string),
 	}).Info("Generated new certificate")
