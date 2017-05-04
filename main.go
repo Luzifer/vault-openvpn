@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"sort"
 	"strings"
 	"text/template"
@@ -46,6 +47,7 @@ var (
 		CertTTL    time.Duration `flag:"ttl" vardefault:"ttl" description:"Set the TTL for this certificate"`
 
 		LogLevel       string `flag:"log-level" vardefault:"log-level" description:"Log level to use (debug, info, warning, error)"`
+		TemplatePath   string `flag:"template-path" vardefault:"template-path" description:"Path to read the client.conf / server.conf template from"`
 		VersionAndExit bool   `flag:"version" default:"false" description:"Prints current version and exits"`
 	}{}
 
@@ -55,6 +57,7 @@ var (
 		"auto-revoke":    "true",
 		"ttl":            "8760h",
 		"log-level":      "info",
+		"template-path":  ".",
 	}
 
 	version = "dev"
@@ -281,7 +284,7 @@ func generateCertificateConfig(tplName, fqdn string) error {
 }
 
 func renderTemplate(tplName string, tplv *templateVars) error {
-	raw, err := ioutil.ReadFile(tplName)
+	raw, err := ioutil.ReadFile(path.Join(cfg.TemplatePath, tplName))
 	if err != nil {
 		return err
 	}
