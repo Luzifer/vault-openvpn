@@ -410,7 +410,7 @@ func generateCertificate(fqdn string) (*templateVars, error) {
 	log.WithFields(log.Fields{
 		"cn":     fqdn,
 		"serial": secret.Data["serial_number"].(string),
-	}).Info("Generated new certificate")
+	}).Debug("Generated new certificate")
 
 	return &templateVars{
 		Certificate: secret.Data["certificate"].(string),
