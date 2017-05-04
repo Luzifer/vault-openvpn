@@ -1,3 +1,7 @@
+# 1.1.0 / 2017-05-04
+
+  * Allow path to templates to be configured
+
 # 1.0.0 / 2017-05-04
 
 This is a major release as it modified the default behaviour:
