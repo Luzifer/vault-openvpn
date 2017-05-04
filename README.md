@@ -1,5 +1,5 @@
 ![license](https://badges.fyi/github/license/Luzifer/vault-openvpn)
-[![download on gobuilder](https://badges.fyi/static/download on/GoBuilder.me)](https://gobuilder.me/github.com/Luzifer/vault-openvpn)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Luzifer/vault-openvpn)](https://goreportcard.com/report/github.com/Luzifer/vault-openvpn)
 
 # Luzifer / vault-openvpn
 
