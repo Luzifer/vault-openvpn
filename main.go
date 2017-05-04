@@ -144,16 +144,16 @@ func init() {
 
 func main() {
 	if len(rconfig.Args()) < 2 {
-		fmt.Println("Usage: vault-openvpn [options] <action> <FQDN>")
-		fmt.Println("         actions: client / server / list / revoke / revoke-serial")
+		fmt.Println("Usage: vault-openvpn [options] <action>")
+		fmt.Println("				client <fqdn>						- Generate certificate and output client config")
+		fmt.Println("				server <fqdn>						- Generate certificate and output server config")
+		fmt.Println("				list										- List all valid (not expired, not revoked) certificates")
+		fmt.Println("				revoke <fqdn>						- Revoke all certificates matching to FQDN")
+		fmt.Println("				revoke-serial <serial>	- Revoke certificate by serial number")
 		os.Exit(1)
 	}
 
 	action := rconfig.Args()[1]
-	fqdn := ""
-	if len(rconfig.Args()) == 3 {
-		fqdn = rconfig.Args()[2]
-	}
 
 	var err error
 
@@ -170,19 +170,31 @@ func main() {
 
 	switch action {
 	case actionRevoke:
-		if err := revokeCertificateByFQDN(fqdn); err != nil {
+		if len(rconfig.Args()) < 3 || !validateFQDN(rconfig.Args()[2]) {
+			log.Fatalf("You need to provide a valid FQDN")
+		}
+		if err := revokeCertificateByFQDN(rconfig.Args()[2]); err != nil {
 			log.Fatalf("Could not revoke certificate: %s", err)
 		}
 	case actionRevokeSerial:
-		if err := revokeCertificateBySerial(fqdn); err != nil {
+		if len(rconfig.Args()) < 3 || !validateSerial(rconfig.Args()[2]) {
+			log.Fatalf("You need to provide a valid serial")
+		}
+		if err := revokeCertificateBySerial(rconfig.Args()[2]); err != nil {
 			log.Fatalf("Could not revoke certificate: %s", err)
 		}
 	case actionMakeClientConfig:
-		if err := generateCertificateConfig("client.conf", fqdn); err != nil {
+		if len(rconfig.Args()) < 3 || !validateFQDN(rconfig.Args()[2]) {
+			log.Fatalf("You need to provide a valid FQDN")
+		}
+		if err := generateCertificateConfig("client.conf", rconfig.Args()[2]); err != nil {
 			log.Fatalf("Unable to generate config file: %s", err)
 		}
 	case actionMakeServerConfig:
-		if err := generateCertificateConfig("server.conf", fqdn); err != nil {
+		if len(rconfig.Args()) < 3 || !validateFQDN(rconfig.Args()[2]) {
+			log.Fatalf("You need to provide a valid FQDN")
+		}
+		if err := generateCertificateConfig("server.conf", rconfig.Args()[2]); err != nil {
 			log.Fatalf("Unable to generate config file: %s", err)
 		}
 	case actionList:
@@ -193,6 +205,17 @@ func main() {
 	default:
 		log.Fatalf("Unknown action: %s", action)
 	}
+}
+
+func validateFQDN(fqdn string) bool {
+	// Very basic check: It should be delimited by "." and have at least 2 components
+	// Vault will do a more sophisticated check
+	return len(strings.Split(fqdn, ".")) > 1
+}
+
+func validateSerial(serial string) bool {
+	// Also very basic check, also here Vault does the real validation
+	return len(strings.Split(serial, ":")) > 1
 }
 
 func listCertificates() error {
