@@ -13,6 +13,8 @@ import (
 	"text/template"
 	"time"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/Luzifer/rconfig"
 	log "github.com/Sirupsen/logrus"
 	"github.com/hashicorp/vault/api"
@@ -28,7 +30,8 @@ const (
 	actionRevoke           = "revoke"
 	actionRevokeSerial     = "revoke-serial"
 
-	dateFormat = "2006-01-02 15:04:05"
+	dateFormat   = "2006-01-02 15:04:05"
+	defaultsFile = "~/.config/vault-openvpn.yaml"
 )
 
 var (
@@ -36,15 +39,23 @@ var (
 		VaultAddress string `flag:"vault-addr" env:"VAULT_ADDR" default:"https://127.0.0.1:8200" description:"Vault API address"`
 		VaultToken   string `flag:"vault-token" env:"VAULT_TOKEN" vardefault:"vault-token" description:"Specify a token to use instead of app-id auth"`
 
-		PKIMountPoint string `flag:"pki-mountpoint" default:"/pki" description:"Path the PKI provider is mounted to"`
-		PKIRole       string `flag:"pki-role" default:"openvpn" description:"Role defined in the PKI usable by the token and able to write the specified FQDN"`
+		PKIMountPoint string `flag:"pki-mountpoint" vardefault:"pki-mountpoint" description:"Path the PKI provider is mounted to"`
+		PKIRole       string `flag:"pki-role" vardefault:"pki-role" description:"Role defined in the PKI usable by the token and able to write the specified FQDN"`
 
-		AutoRevoke bool          `flag:"auto-revoke" default:"true" description:"Automatically revoke older certificates for this FQDN"`
-		CertTTL    time.Duration `flag:"ttl" default:"8760h" description:"Set the TTL for this certificate"`
+		AutoRevoke bool          `flag:"auto-revoke" vardefault:"auto-revoke" description:"Automatically revoke older certificates for this FQDN"`
+		CertTTL    time.Duration `flag:"ttl" vardefault:"ttl" description:"Set the TTL for this certificate"`
 
-		LogLevel       string `flag:"log-level" default:"info" description:"Log level to use (debug, info, warning, error)"`
+		LogLevel       string `flag:"log-level" vardefault:"log-level" description:"Log level to use (debug, info, warning, error)"`
 		VersionAndExit bool   `flag:"version" default:"false" description:"Prints current version and exits"`
 	}{}
+
+	defaultConfig = map[string]string{
+		"pki-mountpoint": "/pki",
+		"pki-role":       "openvpn",
+		"auto-revoke":    "true",
+		"ttl":            "8760h",
+		"log-level":      "info",
+	}
 
 	version = "dev"
 
@@ -87,10 +98,29 @@ func vaultTokenFromDisk() string {
 	return string(data)
 }
 
+func defualtsFromDisk() map[string]string {
+	res := defaultConfig
+
+	df, err := homedir.Expand(defaultsFile)
+	if err != nil {
+		return res
+	}
+
+	yamlSource, err := ioutil.ReadFile(df)
+	if err != nil {
+		return res
+	}
+
+	if err := yaml.Unmarshal(yamlSource, &res); err != nil {
+		log.Errorf("Unable to parse defaults file %q: %s", defaultsFile, err)
+	}
+	return res
+}
+
 func init() {
-	rconfig.SetVariableDefaults(map[string]string{
-		"vault-token": vaultTokenFromDisk(),
-	})
+	defaults := defualtsFromDisk()
+	defaults["vault-token"] = vaultTokenFromDisk()
+	rconfig.SetVariableDefaults(defaults)
 
 	if err := rconfig.Parse(&cfg); err != nil {
 		log.Fatalf("Unable to parse commandline options: %s", err)
