@@ -22,6 +22,20 @@ The Vault setup follows the Quick Start from the Vault documentation and is pers
 
 That's all you need to do to set up a whole PKI for your OpenVPN.
 
+## Configuration of the tool
+
+You can pass all configurations through commandline-parameters. To see the available options and their defaults use the `vault-openvpn --help` flag.
+
+Additionally most of the parameters are also supported to be set using a configuration file to be stored in `~/.config/vault-openvpn.yaml`. To use that file you need to specify the arguments to the flags together with the flag name:
+
+```yaml
+---
+log-level: debug
+template-path: /path/to/templates
+```
+
+The flags not supported to be set through that file are `vault-addr`, `vault-token` and `version`. First two for security reasons, last because it does not make sense.
+
 ## Issuing configurations
 
 You need to create a folder containing two files: `client.conf` and `server.conf`. Those two are templates to use for generating the configuration file used by `vault-openvpn`. Inside those files paste this block which will get replaced by the certificates:
