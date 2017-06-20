@@ -14,7 +14,7 @@ The Vault setup follows the Quick Start from the Vault documentation and is pers
 - Enable long TTLs  
 `vault mount-tune -max-lease-ttl=87600h luzifer_io`
 - Generate a root certificate  
-`vault write pki/root/generate/internal common_name=luzifer.io ttl=87600h`
+`vault write luzifer_io/root/generate/internal common_name=luzifer.io ttl=87600h`
 - Set CA / CRL URLs  
 `vault write luzifer_io/config/urls issuing_certificates=${VAULT_ADDR}/v1/luzifer_io/ca crl_distribution_points=${VAULT_ADDR}/v1/luzifer_io/crl`
 - Set a rule for OpenVPN certificates  
