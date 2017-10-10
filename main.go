@@ -327,6 +327,10 @@ func fetchValidCertificatesFromVault() ([]*x509.Certificate, error) {
 		return res, err
 	}
 
+	if secret == nil {
+		return nil, errors.New("Was not able to read list of certificates")
+	}
+
 	if secret.Data == nil {
 		return res, errors.New("Got no data from backend")
 	}
