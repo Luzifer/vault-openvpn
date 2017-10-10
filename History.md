@@ -1,3 +1,9 @@
+# 1.1.1 / 2017-10-10
+
+  * Fix: Don't panic on non existent PKI path
+  * Update dependencies
+  * Update README.md
+
 # 1.1.0 / 2017-05-04
 
   * Allow path to templates to be configured
