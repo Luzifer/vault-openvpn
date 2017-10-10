@@ -29,34 +29,31 @@ go test -v -race -cover github.com/Luzifer/rconfig
 
 ## Usage
 
-As a first step define a struct holding your configuration:
+A very simple usecase is to just configure a struct inside the vars section of your `main.go` and to parse the commandline flags from the `main()` function:
 
 ```go
-type config struct {
-  Username string `default:"unknown" flag:"user" description:"Your name"`
-  Details  struct {
-    Age int `default:"25" flag:"age" env:"age" description:"Your age"`
-  }
-}
-```
+package main
 
-Next create an instance of that struct and let `rconfig` fill that config:
+import (
+  "fmt"
+  "github.com/Luzifer/rconfig"
+)
 
-```go
-var cfg config
-func init() {
-  cfg = config{}
-  rconfig.Parse(&cfg)
-}
-```
+var (
+  cfg = struct {
+    Username string `default:"unknown" flag:"user" description:"Your name"`
+    Details  struct {
+      Age int `default:"25" flag:"age" env:"age" description:"Your age"`
+    }
+  }{}
+)
 
-You're ready to access your configuration:
-
-```go
 func main() {
+  rconfig.Parse(&cfg)
+
   fmt.Printf("Hello %s, happy birthday for your %dth birthday.",
-		cfg.Username,
-		cfg.Details.Age)
+    cfg.Username,
+    cfg.Details.Age)
 }
 ```
 
@@ -72,18 +69,14 @@ The order of the directives (lower number = higher precedence):
 1. `default` tag in the struct
 
 ```go
-type config struct {
+var cfg = struct {
   Username string `vardefault:"username" flag:"username" description:"Your username"`
 }
 
-var cfg = config{}
-
-func init() {
+func main() {
   rconfig.SetVariableDefaults(rconfig.VarDefaultsFromYAMLFile("~/.myapp.yml"))
   rconfig.Parse(&cfg)
-}
 
-func main() {
   fmt.Printf("Username = %s", cfg.Username)
   // Output: Username = luzifer
 }

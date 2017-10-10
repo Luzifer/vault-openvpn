@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/vault/helper/parseutil"
 	"github.com/hashicorp/vault/helper/jsonutil"
+	"github.com/hashicorp/vault/helper/parseutil"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
 )
@@ -17,13 +17,13 @@ func PassthroughBackendFactory(conf *logical.BackendConfig) (logical.Backend, er
 	return LeaseSwitchedPassthroughBackend(conf, false)
 }
 
-// PassthroughBackendWithLeasesFactory returns a PassthroughBackend
+// LeasedPassthroughBackendFactory returns a PassthroughBackend
 // with leases switched on
 func LeasedPassthroughBackendFactory(conf *logical.BackendConfig) (logical.Backend, error) {
 	return LeaseSwitchedPassthroughBackend(conf, true)
 }
 
-// LeaseSwitchedPassthroughBackendFactory returns a PassthroughBackend
+// LeaseSwitchedPassthroughBackend returns a PassthroughBackend
 // with leases switched on or off
 func LeaseSwitchedPassthroughBackend(conf *logical.BackendConfig, leases bool) (logical.Backend, error) {
 	var b PassthroughBackend
@@ -53,7 +53,7 @@ func LeaseSwitchedPassthroughBackend(conf *logical.BackendConfig, leases bool) (
 
 	b.Backend.Secrets = []*framework.Secret{
 		&framework.Secret{
-			Type: "generic",
+			Type: "kv",
 
 			Renew:  b.handleRead,
 			Revoke: b.handleRevoke,
@@ -116,7 +116,7 @@ func (b *PassthroughBackend) handleRead(
 	var resp *logical.Response
 	if b.generateLeases {
 		// Generate the response
-		resp = b.Secret("generic").Response(rawData, nil)
+		resp = b.Secret("kv").Response(rawData, nil)
 		resp.Secret.Renewable = false
 	} else {
 		resp = &logical.Response{
@@ -126,14 +126,13 @@ func (b *PassthroughBackend) handleRead(
 	}
 
 	// Check if there is a ttl key
-	var ttl string
-	ttl, _ = rawData["ttl"].(string)
-	if len(ttl) == 0 {
-		ttl, _ = rawData["lease"].(string)
-	}
 	ttlDuration := b.System().DefaultLeaseTTL()
-	if len(ttl) != 0 {
-		dur, err := parseutil.ParseDurationSecond(ttl)
+	ttlRaw, ok := rawData["ttl"]
+	if !ok {
+		ttlRaw, ok = rawData["lease"]
+	}
+	if ok {
+		dur, err := parseutil.ParseDurationSecond(ttlRaw)
 		if err == nil {
 			ttlDuration = dur
 		}
@@ -146,6 +145,10 @@ func (b *PassthroughBackend) handleRead(
 	resp.Secret.TTL = ttlDuration
 
 	return resp, nil
+}
+
+func (b *PassthroughBackend) GeneratesLeases() bool {
+	return b.generateLeases
 }
 
 func (b *PassthroughBackend) handleWrite(
@@ -203,12 +206,8 @@ func (b *PassthroughBackend) handleList(
 	return logical.ListResponse(keys), nil
 }
 
-func (b *PassthroughBackend) GeneratesLeases() bool {
-	return b.generateLeases
-}
-
 const passthroughHelp = `
-The generic backend reads and writes arbitrary secrets to the backend.
+The kv backend reads and writes arbitrary secrets to the backend.
 The secrets are encrypted/decrypted by Vault: they are never stored
 unencrypted in the backend and the backend never has an opportunity to
 see the unencrypted value.

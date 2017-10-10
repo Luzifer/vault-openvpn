@@ -61,6 +61,9 @@ func TestAppRole_CIDRSubset(t *testing.T) {
 
 	secretIDData["cidr_list"] = "192.168.27.29/20,172.245.30.40/25,10.20.30.40/32"
 	resp, err = b.HandleRequest(secretIDReq)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp != nil && resp.IsError() {
 		t.Fatalf("resp: %#v", resp)
 	}
@@ -605,7 +608,7 @@ func TestAppRole_RoleCRUD(t *testing.T) {
 
 	expected := map[string]interface{}{
 		"bind_secret_id":     true,
-		"policies":           []string{"default", "p", "q", "r", "s"},
+		"policies":           []string{"p", "q", "r", "s"},
 		"secret_id_num_uses": 10,
 		"secret_id_ttl":      300,
 		"token_ttl":          400,
@@ -653,7 +656,7 @@ func TestAppRole_RoleCRUD(t *testing.T) {
 	}
 
 	expected = map[string]interface{}{
-		"policies":           []string{"a", "b", "c", "d", "default"},
+		"policies":           []string{"a", "b", "c", "d"},
 		"secret_id_num_uses": 100,
 		"secret_id_ttl":      3000,
 		"token_ttl":          4000,
@@ -761,7 +764,7 @@ func TestAppRole_RoleCRUD(t *testing.T) {
 		t.Fatalf("err:%v resp:%#v", err, resp)
 	}
 
-	if !reflect.DeepEqual(resp.Data["policies"].([]string), []string{"a1", "b1", "c1", "d1", "default"}) {
+	if !reflect.DeepEqual(resp.Data["policies"].([]string), []string{"a1", "b1", "c1", "d1"}) {
 		t.Fatalf("bad: policies: actual:%s\n", resp.Data["policies"].([]string))
 	}
 	roleReq.Operation = logical.DeleteOperation

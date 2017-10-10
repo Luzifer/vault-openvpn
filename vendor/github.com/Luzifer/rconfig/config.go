@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
+	validator "gopkg.in/validator.v2"
 )
 
 var (
@@ -45,6 +46,15 @@ func Parse(config interface{}) error {
 	return parse(config, nil)
 }
 
+// ParseAndValidate works exactly like Parse but implements an additional run of
+// the go-validator package on the configuration struct. Therefore additonal struct
+// tags are supported like described in the readme file of the go-validator package:
+//
+// https://github.com/go-validator/validator/tree/v2#usage
+func ParseAndValidate(config interface{}) error {
+	return parseAndValidate(config, nil)
+}
+
 // Args returns the non-flag command-line arguments.
 func Args() []string {
 	return fs.Args()
@@ -63,6 +73,14 @@ func Usage() {
 // when specifying the vardefault tag
 func SetVariableDefaults(defaults map[string]string) {
 	variableDefaults = defaults
+}
+
+func parseAndValidate(in interface{}, args []string) error {
+	if err := parse(in, args); err != nil {
+		return err
+	}
+
+	return validator.Validate(in)
 }
 
 func parse(in interface{}, args []string) error {

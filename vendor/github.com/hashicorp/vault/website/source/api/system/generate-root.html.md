@@ -81,7 +81,7 @@ generation attempt can take place at a time. One (and only one) of `otp` or
 ```
 $ curl \
     --request PUT \
-    --data payload.json \
+    --data @payload.json \
     https://vault.rocks/v1/sys/generate-root/attempt    
 ```
 
@@ -139,7 +139,7 @@ nonce must be provided with each call.
 ```json
 {
   "key": "acbd1234",
-  "nonce": "ad235",
+  "nonce": "ad235"
 }
 ```
 
@@ -148,7 +148,7 @@ nonce must be provided with each call.
 ```
 $ curl \
     --request PUT \
-    --data payload.json \
+    --data @payload.json \
     https://vault.rocks/v1/sys/generate-root/update
 ```
 

@@ -2,6 +2,11 @@ package vault
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -9,6 +14,8 @@ import (
 
 	"github.com/fatih/structs"
 	"github.com/hashicorp/vault/audit"
+	"github.com/hashicorp/vault/helper/builtinplugins"
+	"github.com/hashicorp/vault/helper/pluginutil"
 	"github.com/hashicorp/vault/helper/salt"
 	"github.com/hashicorp/vault/logical"
 	"github.com/mitchellh/mapstructure"
@@ -20,12 +27,16 @@ func TestSystemBackend_RootPaths(t *testing.T) {
 		"remount",
 		"audit",
 		"audit/*",
+		"raw",
 		"raw/*",
 		"replication/primary/secondary-token",
 		"replication/reindex",
 		"rotate",
+		"config/cors",
 		"config/auditing/*",
+		"plugins/catalog/*",
 		"revoke-prefix/*",
+		"revoke-force/*",
 		"leases/revoke-prefix/*",
 		"leases/revoke-force/*",
 		"leases/lookup/*",
@@ -36,6 +47,62 @@ func TestSystemBackend_RootPaths(t *testing.T) {
 	if !reflect.DeepEqual(actual, expected) {
 		t.Fatalf("bad: %#v", actual)
 	}
+}
+
+func TestSystemConfigCORS(t *testing.T) {
+	b := testSystemBackend(t)
+	_, barrier, _ := mockBarrier(t)
+	view := NewBarrierView(barrier, "")
+	b.(*SystemBackend).Core.systemBarrierView = view
+
+	req := logical.TestRequest(t, logical.UpdateOperation, "config/cors")
+	req.Data["allowed_origins"] = "http://www.example.com"
+	req.Data["allowed_headers"] = "X-Custom-Header"
+	_, err := b.HandleRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := &logical.Response{
+		Data: map[string]interface{}{
+			"enabled":         true,
+			"allowed_origins": []string{"http://www.example.com"},
+			"allowed_headers": append(StdAllowedHeaders, "X-Custom-Header"),
+		},
+	}
+
+	req = logical.TestRequest(t, logical.ReadOperation, "config/cors")
+	actual, err := b.HandleRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("bad: %#v", actual)
+	}
+
+	req = logical.TestRequest(t, logical.DeleteOperation, "config/cors")
+	_, err = b.HandleRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	req = logical.TestRequest(t, logical.ReadOperation, "config/cors")
+	actual, err = b.HandleRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	expected = &logical.Response{
+		Data: map[string]interface{}{
+			"enabled": false,
+		},
+	}
+
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("DELETE FAILED -- bad: %#v", actual)
+	}
+
 }
 
 func TestSystemBackend_mounts(t *testing.T) {
@@ -50,8 +117,9 @@ func TestSystemBackend_mounts(t *testing.T) {
 	// copy what's given
 	exp := map[string]interface{}{
 		"secret/": map[string]interface{}{
-			"type":        "generic",
-			"description": "generic secret storage",
+			"type":        "kv",
+			"description": "key/value secret storage",
+			"accessor":    resp.Data["secret/"].(map[string]interface{})["accessor"],
 			"config": map[string]interface{}{
 				"default_lease_ttl": resp.Data["secret/"].(map[string]interface{})["config"].(map[string]interface{})["default_lease_ttl"].(int64),
 				"max_lease_ttl":     resp.Data["secret/"].(map[string]interface{})["config"].(map[string]interface{})["max_lease_ttl"].(int64),
@@ -62,6 +130,7 @@ func TestSystemBackend_mounts(t *testing.T) {
 		"sys/": map[string]interface{}{
 			"type":        "system",
 			"description": "system endpoints used for control, policy and debugging",
+			"accessor":    resp.Data["sys/"].(map[string]interface{})["accessor"],
 			"config": map[string]interface{}{
 				"default_lease_ttl": resp.Data["sys/"].(map[string]interface{})["config"].(map[string]interface{})["default_lease_ttl"].(int64),
 				"max_lease_ttl":     resp.Data["sys/"].(map[string]interface{})["config"].(map[string]interface{})["max_lease_ttl"].(int64),
@@ -72,6 +141,7 @@ func TestSystemBackend_mounts(t *testing.T) {
 		"cubbyhole/": map[string]interface{}{
 			"description": "per-token private secret storage",
 			"type":        "cubbyhole",
+			"accessor":    resp.Data["cubbyhole/"].(map[string]interface{})["accessor"],
 			"config": map[string]interface{}{
 				"default_lease_ttl": resp.Data["cubbyhole/"].(map[string]interface{})["config"].(map[string]interface{})["default_lease_ttl"].(int64),
 				"max_lease_ttl":     resp.Data["cubbyhole/"].(map[string]interface{})["config"].(map[string]interface{})["max_lease_ttl"].(int64),
@@ -89,7 +159,7 @@ func TestSystemBackend_mount(t *testing.T) {
 	b := testSystemBackend(t)
 
 	req := logical.TestRequest(t, logical.UpdateOperation, "mounts/prod/secret/")
-	req.Data["type"] = "generic"
+	req.Data["type"] = "kv"
 
 	resp, err := b.HandleRequest(req)
 	if err != nil {
@@ -104,7 +174,7 @@ func TestSystemBackend_mount_force_no_cache(t *testing.T) {
 	core, b, _ := testCoreSystemBackend(t)
 
 	req := logical.TestRequest(t, logical.UpdateOperation, "mounts/prod/secret/")
-	req.Data["type"] = "generic"
+	req.Data["type"] = "kv"
 	req.Data["config"] = map[string]interface{}{
 		"force_no_cache": true,
 	}
@@ -353,7 +423,7 @@ func TestSystemBackend_leases(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 	if resp.Data["renewable"] == nil || resp.Data["renewable"].(bool) {
-		t.Fatal("generic leases are not renewable")
+		t.Fatal("kv leases are not renewable")
 	}
 
 	// Invalid lease
@@ -919,7 +989,8 @@ func TestSystemBackend_revokePrefixAuth(t *testing.T) {
 			MaxLeaseTTLVal:     time.Hour * 24 * 32,
 		},
 	}
-	b, err := NewSystemBackend(core, bc)
+	b := NewSystemBackend(core)
+	err := b.Backend.Setup(bc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -982,7 +1053,8 @@ func TestSystemBackend_revokePrefixAuth_origUrl(t *testing.T) {
 			MaxLeaseTTLVal:     time.Hour * 24 * 32,
 		},
 	}
-	b, err := NewSystemBackend(core, bc)
+	b := NewSystemBackend(core)
+	err := b.Backend.Setup(bc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1048,6 +1120,7 @@ func TestSystemBackend_authTable(t *testing.T) {
 		"token/": map[string]interface{}{
 			"type":        "token",
 			"description": "token based credentials",
+			"accessor":    resp.Data["token/"].(map[string]interface{})["accessor"],
 			"config": map[string]interface{}{
 				"default_lease_ttl": int64(0),
 				"max_lease_ttl":     int64(0),
@@ -1163,8 +1236,16 @@ func TestSystemBackend_policyCRUD(t *testing.T) {
 	// Read, and make sure that case has been normalized
 	req = logical.TestRequest(t, logical.ReadOperation, "policy/Foo")
 	resp, err = b.HandleRequest(req)
-	if resp != nil {
-		t.Fatalf("err: expected nil response, got %#v", *resp)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	exp = map[string]interface{}{
+		"name":  "foo",
+		"rules": rules,
+	}
+	if !reflect.DeepEqual(resp.Data, exp) {
+		t.Fatalf("got: %#v expect: %#v", resp.Data, exp)
 	}
 
 	// List the policies
@@ -1246,13 +1327,11 @@ func TestSystemBackend_auditHash(t *testing.T) {
 			Key:   "salt",
 			Value: []byte("foo"),
 		})
-		var err error
-		config.Salt, err = salt.NewSalt(view, &salt.Config{
+		config.SaltView = view
+		config.SaltConfig = &salt.Config{
 			HMAC:     sha256.New,
 			HMACType: "hmac-sha256",
-		})
-		if err != nil {
-			t.Fatalf("error getting new salt: %v", err)
+			Location: salt.DefaultLocation,
 		}
 		return &NoopAudit{
 			Config: config,
@@ -1369,7 +1448,7 @@ func TestSystemBackend_disableAudit(t *testing.T) {
 }
 
 func TestSystemBackend_rawRead_Protected(t *testing.T) {
-	b := testSystemBackend(t)
+	b := testSystemBackendRaw(t)
 
 	req := logical.TestRequest(t, logical.ReadOperation, "raw/"+keyringPath)
 	_, err := b.HandleRequest(req)
@@ -1379,7 +1458,7 @@ func TestSystemBackend_rawRead_Protected(t *testing.T) {
 }
 
 func TestSystemBackend_rawWrite_Protected(t *testing.T) {
-	b := testSystemBackend(t)
+	b := testSystemBackendRaw(t)
 
 	req := logical.TestRequest(t, logical.UpdateOperation, "raw/"+keyringPath)
 	_, err := b.HandleRequest(req)
@@ -1389,7 +1468,7 @@ func TestSystemBackend_rawWrite_Protected(t *testing.T) {
 }
 
 func TestSystemBackend_rawReadWrite(t *testing.T) {
-	c, b, _ := testCoreSystemBackend(t)
+	c, b, _ := testCoreSystemBackendRaw(t)
 
 	req := logical.TestRequest(t, logical.UpdateOperation, "raw/sys/policy/test")
 	req.Data["value"] = `path "secret/" { policy = "read" }`
@@ -1425,7 +1504,7 @@ func TestSystemBackend_rawReadWrite(t *testing.T) {
 }
 
 func TestSystemBackend_rawDelete_Protected(t *testing.T) {
-	b := testSystemBackend(t)
+	b := testSystemBackendRaw(t)
 
 	req := logical.TestRequest(t, logical.DeleteOperation, "raw/"+keyringPath)
 	_, err := b.HandleRequest(req)
@@ -1435,7 +1514,7 @@ func TestSystemBackend_rawDelete_Protected(t *testing.T) {
 }
 
 func TestSystemBackend_rawDelete(t *testing.T) {
-	c, b, _ := testCoreSystemBackend(t)
+	c, b, _ := testCoreSystemBackendRaw(t)
 
 	// set the policy!
 	p := &Policy{Name: "test"}
@@ -1511,6 +1590,25 @@ func TestSystemBackend_rotate(t *testing.T) {
 
 func testSystemBackend(t *testing.T) logical.Backend {
 	c, _, _ := TestCoreUnsealed(t)
+	return testSystemBackendInternal(t, c)
+}
+
+func testSystemBackendRaw(t *testing.T) logical.Backend {
+	c, _, _ := TestCoreUnsealedRaw(t)
+	return testSystemBackendInternal(t, c)
+}
+
+func testCoreSystemBackend(t *testing.T) (*Core, logical.Backend, string) {
+	c, _, root := TestCoreUnsealed(t)
+	return c, testSystemBackendInternal(t, c), root
+}
+
+func testCoreSystemBackendRaw(t *testing.T) (*Core, logical.Backend, string) {
+	c, _, root := TestCoreUnsealedRaw(t)
+	return c, testSystemBackendInternal(t, c), root
+}
+
+func testSystemBackendInternal(t *testing.T, c *Core) logical.Backend {
 	bc := &logical.BackendConfig{
 		Logger: c.logger,
 		System: logical.StaticSystemView{
@@ -1519,7 +1617,8 @@ func testSystemBackend(t *testing.T) logical.Backend {
 		},
 	}
 
-	b, err := NewSystemBackend(c, bc)
+	b := NewSystemBackend(c)
+	err := b.Backend.Setup(bc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1527,19 +1626,88 @@ func testSystemBackend(t *testing.T) logical.Backend {
 	return b
 }
 
-func testCoreSystemBackend(t *testing.T) (*Core, logical.Backend, string) {
-	c, _, root := TestCoreUnsealed(t)
-	bc := &logical.BackendConfig{
-		Logger: c.logger,
-		System: logical.StaticSystemView{
-			DefaultLeaseTTLVal: time.Hour * 24,
-			MaxLeaseTTLVal:     time.Hour * 24 * 32,
-		},
+func TestSystemBackend_PluginCatalog_CRUD(t *testing.T) {
+	c, b, _ := testCoreSystemBackend(t)
+	// Bootstrap the pluginCatalog
+	sym, err := filepath.EvalSymlinks(os.TempDir())
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	c.pluginCatalog.directory = sym
+
+	req := logical.TestRequest(t, logical.ListOperation, "plugins/catalog/")
+	resp, err := b.HandleRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
 	}
 
-	b, err := NewSystemBackend(c, bc)
+	if len(resp.Data["keys"].([]string)) != len(builtinplugins.Keys()) {
+		t.Fatalf("Wrong number of plugins, got %d, expected %d", len(resp.Data["keys"].([]string)), len(builtinplugins.Keys()))
+	}
+
+	req = logical.TestRequest(t, logical.ReadOperation, "plugins/catalog/mysql-database-plugin")
+	resp, err = b.HandleRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	actualRespData := resp.Data
+
+	expectedBuiltin := &pluginutil.PluginRunner{
+		Name:    "mysql-database-plugin",
+		Builtin: true,
+	}
+	expectedRespData := structs.New(expectedBuiltin).Map()
+
+	if !reflect.DeepEqual(actualRespData, expectedRespData) {
+		t.Fatalf("expected did not match actual, got %#v\n expected %#v\n", actualRespData, expectedRespData)
+	}
+
+	// Set a plugin
+	file, err := ioutil.TempFile(os.TempDir(), "temp")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return c, b, root
+	defer file.Close()
+
+	command := fmt.Sprintf("%s --test", filepath.Base(file.Name()))
+	req = logical.TestRequest(t, logical.UpdateOperation, "plugins/catalog/test-plugin")
+	req.Data["sha_256"] = hex.EncodeToString([]byte{'1'})
+	req.Data["command"] = command
+	resp, err = b.HandleRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	req = logical.TestRequest(t, logical.ReadOperation, "plugins/catalog/test-plugin")
+	resp, err = b.HandleRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	actual := resp.Data
+
+	expectedRunner := &pluginutil.PluginRunner{
+		Name:    "test-plugin",
+		Command: filepath.Join(sym, filepath.Base(file.Name())),
+		Args:    []string{"--test"},
+		Sha256:  []byte{'1'},
+		Builtin: false,
+	}
+	expected := structs.New(expectedRunner).Map()
+
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("expected did not match actual, got %#v\n expected %#v\n", actual, expected)
+	}
+
+	// Delete plugin
+	req = logical.TestRequest(t, logical.DeleteOperation, "plugins/catalog/test-plugin")
+	resp, err = b.HandleRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	req = logical.TestRequest(t, logical.ReadOperation, "plugins/catalog/test-plugin")
+	resp, err = b.HandleRequest(req)
+	if resp != nil || err != nil {
+		t.Fatalf("expected nil response, plugin not deleted correctly got resp: %v, err: %v", resp, err)
+	}
 }

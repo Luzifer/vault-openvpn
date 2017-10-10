@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/vault/helper/kv-builder"
 	"github.com/hashicorp/vault/meta"
+	"github.com/posener/complete"
 )
 
 // WriteCommand is a Command that puts data into the Vault.
@@ -32,6 +33,12 @@ func (c *WriteCommand) Run(args []string) int {
 	}
 
 	args = flags.Args()
+	if len(args) < 1 {
+		c.Ui.Error("write requires a path")
+		flags.Usage()
+		return 1
+	}
+
 	if len(args) < 2 && !force {
 		c.Ui.Error("write expects at least two arguments; use -f to perform the write anyways")
 		flags.Usage()
@@ -132,4 +139,16 @@ Write Options:
 
 `
 	return strings.TrimSpace(helpText)
+}
+
+func (c *WriteCommand) AutocompleteArgs() complete.Predictor {
+	return complete.PredictNothing
+}
+
+func (c *WriteCommand) AutocompleteFlags() complete.Flags {
+	return complete.Flags{
+		"-force":  complete.PredictNothing,
+		"-format": predictFormat,
+		"-field":  complete.PredictNothing,
+	}
 }

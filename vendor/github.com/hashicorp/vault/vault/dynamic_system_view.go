@@ -1,9 +1,14 @@
 package vault
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/hashicorp/errwrap"
+
 	"github.com/hashicorp/vault/helper/consts"
+	"github.com/hashicorp/vault/helper/pluginutil"
+	"github.com/hashicorp/vault/helper/wrapping"
 	"github.com/hashicorp/vault/logical"
 )
 
@@ -79,11 +84,60 @@ func (d dynamicSystemView) CachingDisabled() bool {
 	return d.core.cachingDisabled || (d.mountEntry != nil && d.mountEntry.Config.ForceNoCache)
 }
 
-// Checks if this is a primary Vault instance.
+// Checks if this is a primary Vault instance. Caller should hold the stateLock
+// in read mode.
 func (d dynamicSystemView) ReplicationState() consts.ReplicationState {
-	var state consts.ReplicationState
-	d.core.clusterParamsLock.RLock()
-	state = d.core.replicationState
-	d.core.clusterParamsLock.RUnlock()
-	return state
+	return d.core.replicationState
+}
+
+// ResponseWrapData wraps the given data in a cubbyhole and returns the
+// token used to unwrap.
+func (d dynamicSystemView) ResponseWrapData(data map[string]interface{}, ttl time.Duration, jwt bool) (*wrapping.ResponseWrapInfo, error) {
+	req := &logical.Request{
+		Operation: logical.CreateOperation,
+		Path:      "sys/wrapping/wrap",
+	}
+
+	resp := &logical.Response{
+		WrapInfo: &wrapping.ResponseWrapInfo{
+			TTL: ttl,
+		},
+		Data: data,
+	}
+
+	if jwt {
+		resp.WrapInfo.Format = "jwt"
+	}
+
+	_, err := d.core.wrapInCubbyhole(req, resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.WrapInfo, nil
+}
+
+// LookupPlugin looks for a plugin with the given name in the plugin catalog. It
+// returns a PluginRunner or an error if no plugin was found.
+func (d dynamicSystemView) LookupPlugin(name string) (*pluginutil.PluginRunner, error) {
+	if d.core == nil {
+		return nil, fmt.Errorf("system view core is nil")
+	}
+	if d.core.pluginCatalog == nil {
+		return nil, fmt.Errorf("system view core plugin catalog is nil")
+	}
+	r, err := d.core.pluginCatalog.Get(name)
+	if err != nil {
+		return nil, err
+	}
+	if r == nil {
+		return nil, errwrap.Wrapf(fmt.Sprintf("{{err}}: %s", name), ErrPluginNotFound)
+	}
+
+	return r, nil
+}
+
+// MlockEnabled returns the configuration setting for enabling mlock on plugins.
+func (d dynamicSystemView) MlockEnabled() bool {
+	return d.core.enableMlock
 }

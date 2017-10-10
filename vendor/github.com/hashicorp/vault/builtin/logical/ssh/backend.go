@@ -2,6 +2,7 @@ package ssh
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/vault/helper/salt"
 	"github.com/hashicorp/vault/logical"
@@ -10,8 +11,9 @@ import (
 
 type backend struct {
 	*framework.Backend
-	view logical.Storage
-	salt *salt.Salt
+	view      logical.Storage
+	salt      *salt.Salt
+	saltMutex sync.RWMutex
 }
 
 func Factory(conf *logical.BackendConfig) (logical.Backend, error) {
@@ -19,7 +21,10 @@ func Factory(conf *logical.BackendConfig) (logical.Backend, error) {
 	if err != nil {
 		return nil, err
 	}
-	return b.Setup(conf)
+	if err := b.Setup(conf); err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
 func Backend(conf *logical.BackendConfig) (*backend, error) {
@@ -57,20 +62,42 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 			secretOTP(&b),
 		},
 
-		Init: b.Initialize,
+		Invalidate:  b.invalidate,
+		BackendType: logical.TypeLogical,
 	}
 	return &b, nil
 }
 
-func (b *backend) Initialize() error {
+func (b *backend) Salt() (*salt.Salt, error) {
+	b.saltMutex.RLock()
+	if b.salt != nil {
+		defer b.saltMutex.RUnlock()
+		return b.salt, nil
+	}
+	b.saltMutex.RUnlock()
+	b.saltMutex.Lock()
+	defer b.saltMutex.Unlock()
+	if b.salt != nil {
+		return b.salt, nil
+	}
 	salt, err := salt.NewSalt(b.view, &salt.Config{
 		HashFunc: salt.SHA256Hash,
+		Location: salt.DefaultLocation,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	b.salt = salt
-	return nil
+	return salt, nil
+}
+
+func (b *backend) invalidate(key string) {
+	switch key {
+	case salt.DefaultLocation:
+		b.saltMutex.Lock()
+		defer b.saltMutex.Unlock()
+		b.salt = nil
+	}
 }
 
 const backendHelp = `

@@ -13,7 +13,11 @@ import (
 )
 
 func Factory(conf *logical.BackendConfig) (logical.Backend, error) {
-	return Backend().Setup(conf)
+	b := Backend()
+	if err := b.Setup(conf); err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
 func Backend() *backend {
@@ -39,7 +43,8 @@ func Backend() *backend {
 			mfa.MFAPaths(b.Backend, pathLogin(&b))...,
 		),
 
-		AuthRenew: b.pathLoginRenew,
+		AuthRenew:   b.pathLoginRenew,
+		BackendType: logical.TypeCredential,
 	}
 
 	return &b
@@ -118,7 +123,12 @@ func (b *backend) Login(req *logical.Request, username string, password string) 
 	}
 
 	// Try to bind as the login user. This is where the actual authentication takes place.
-	if err = c.Bind(userBindDN, password); err != nil {
+	if len(password) > 0 {
+		err = c.Bind(userBindDN, password)
+	} else {
+		err = c.UnauthenticatedBind(userBindDN)
+	}
+	if err != nil {
 		return nil, logical.ErrorResponse(fmt.Sprintf("LDAP bind failed: %v", err)), nil
 	}
 
@@ -184,8 +194,8 @@ func (b *backend) Login(req *logical.Request, username string, password string) 
 
 	if len(policies) == 0 {
 		errStr := "user is not a member of any authorized group"
-		if len(ldapResponse.Warnings()) > 0 {
-			errStr = fmt.Sprintf("%s; additionally, %s", errStr, ldapResponse.Warnings()[0])
+		if len(ldapResponse.Warnings) > 0 {
+			errStr = fmt.Sprintf("%s; additionally, %s", errStr, ldapResponse.Warnings[0])
 		}
 
 		ldapResponse.Data["error"] = errStr
@@ -232,7 +242,13 @@ func (b *backend) getCN(dn string) string {
 func (b *backend) getUserBindDN(cfg *ConfigEntry, c *ldap.Conn, username string) (string, error) {
 	bindDN := ""
 	if cfg.DiscoverDN || (cfg.BindDN != "" && cfg.BindPassword != "") {
-		if err := c.Bind(cfg.BindDN, cfg.BindPassword); err != nil {
+		var err error
+		if cfg.BindPassword != "" {
+			err = c.Bind(cfg.BindDN, cfg.BindPassword)
+		} else {
+			err = c.UnauthenticatedBind(cfg.BindDN)
+		}
+		if err != nil {
 			return bindDN, fmt.Errorf("LDAP bind (service) failed: %v", err)
 		}
 

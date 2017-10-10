@@ -113,7 +113,7 @@ func rolePaths(b *backend) []*framework.Path {
 addresses which can perform the login operation`,
 				},
 				"policies": &framework.FieldSchema{
-					Type:        framework.TypeString,
+					Type:        framework.TypeCommaStringSlice,
 					Default:     "default",
 					Description: "Comma separated list of policies on the role.",
 				},
@@ -172,7 +172,7 @@ TTL will be set to the value of this parameter.`,
 					Description: "Name of the role.",
 				},
 				"policies": &framework.FieldSchema{
-					Type:        framework.TypeString,
+					Type:        framework.TypeCommaStringSlice,
 					Default:     "default",
 					Description: "Comma separated list of policies on the role.",
 				},
@@ -768,9 +768,9 @@ func (b *backend) pathRoleCreateUpdate(req *logical.Request, data *framework.Fie
 	}
 
 	if policiesRaw, ok := data.GetOk("policies"); ok {
-		role.Policies = policyutil.ParsePolicies(policiesRaw.(string))
+		role.Policies = policyutil.ParsePolicies(policiesRaw)
 	} else if req.Operation == logical.CreateOperation {
-		role.Policies = policyutil.ParsePolicies(data.Get("policies").(string))
+		role.Policies = policyutil.ParsePolicies(data.Get("policies"))
 	}
 
 	periodRaw, ok := data.GetOk("period")
@@ -1306,8 +1306,8 @@ func (b *backend) pathRolePoliciesUpdate(req *logical.Request, data *framework.F
 		return nil, nil
 	}
 
-	policies := strings.TrimSpace(data.Get("policies").(string))
-	if policies == "" {
+	policiesRaw, ok := data.GetOk("policies")
+	if !ok {
 		return logical.ErrorResponse("missing policies"), nil
 	}
 
@@ -1316,7 +1316,7 @@ func (b *backend) pathRolePoliciesUpdate(req *logical.Request, data *framework.F
 	lock.Lock()
 	defer lock.Unlock()
 
-	role.Policies = policyutil.ParsePolicies(policies)
+	role.Policies = policyutil.ParsePolicies(policiesRaw)
 
 	return nil, b.setRoleEntry(req.Storage, roleName, role, "")
 }
@@ -1359,7 +1359,7 @@ func (b *backend) pathRolePoliciesDelete(req *logical.Request, data *framework.F
 	lock.Lock()
 	defer lock.Unlock()
 
-	role.Policies = policyutil.ParsePolicies(data.GetDefaultOrZero("policies").(string))
+	role.Policies = []string{}
 
 	return nil, b.setRoleEntry(req.Storage, roleName, role, "")
 }
@@ -1939,7 +1939,11 @@ func (b *backend) setRoleIDEntry(s logical.Storage, roleID string, roleIDEntry *
 	lock.Lock()
 	defer lock.Unlock()
 
-	entryIndex := "role_id/" + b.salt.SaltID(roleID)
+	salt, err := b.Salt()
+	if err != nil {
+		return err
+	}
+	entryIndex := "role_id/" + salt.SaltID(roleID)
 
 	entry, err := logical.StorageEntryJSON(entryIndex, roleIDEntry)
 	if err != nil {
@@ -1963,7 +1967,11 @@ func (b *backend) roleIDEntry(s logical.Storage, roleID string) (*roleIDStorageE
 
 	var result roleIDStorageEntry
 
-	entryIndex := "role_id/" + b.salt.SaltID(roleID)
+	salt, err := b.Salt()
+	if err != nil {
+		return nil, err
+	}
+	entryIndex := "role_id/" + salt.SaltID(roleID)
 
 	if entry, err := s.Get(entryIndex); err != nil {
 		return nil, err
@@ -1987,7 +1995,11 @@ func (b *backend) roleIDEntryDelete(s logical.Storage, roleID string) error {
 	lock.Lock()
 	defer lock.Unlock()
 
-	entryIndex := "role_id/" + b.salt.SaltID(roleID)
+	salt, err := b.Salt()
+	if err != nil {
+		return err
+	}
+	entryIndex := "role_id/" + salt.SaltID(roleID)
 
 	return s.Delete(entryIndex)
 }

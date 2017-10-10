@@ -14,7 +14,7 @@ import (
 func LogicalResponseToHTTPResponse(input *Response) *HTTPResponse {
 	httpResp := &HTTPResponse{
 		Data:     input.Data,
-		Warnings: input.Warnings(),
+		Warnings: input.Warnings,
 	}
 
 	if input.Secret != nil {
@@ -42,7 +42,7 @@ func LogicalResponseToHTTPResponse(input *Response) *HTTPResponse {
 func HTTPResponseToLogicalResponse(input *HTTPResponse) *Response {
 	logicalResp := &Response{
 		Data:     input.Data,
-		warnings: input.Warnings,
+		Warnings: input.Warnings,
 	}
 
 	if input.LeaseID != "" {
@@ -91,6 +91,7 @@ type HTTPWrapInfo struct {
 	Token           string `json:"token"`
 	TTL             int    `json:"ttl"`
 	CreationTime    string `json:"creation_time"`
+	CreationPath    string `json:"creation_path"`
 	WrappedAccessor string `json:"wrapped_accessor,omitempty"`
 }
 

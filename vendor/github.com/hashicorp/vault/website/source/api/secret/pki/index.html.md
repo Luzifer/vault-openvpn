@@ -16,11 +16,42 @@ This documentation assumes the PKI backend is mounted at the `/pki` path in
 Vault. Since it is possible to mount secret backends at any location, please
 update your API calls accordingly.
 
+## Table of Contents
+
+* [Read CA Certificate](#read-ca-certificate)
+* [Read CA Certificate Chain](#read-ca-certificate-chain)
+* [Read Certificate](#read-certificate)
+* [List Certificates](#list-certificates)
+* [Submit CA Information](#submit-ca-information)
+* [Read CRL Configuration](#read-crl-configuration)
+* [Set CRL Configuration](#set-crl-configuration)
+* [Read URLs](#read-urls)
+* [Set URLs](#set-urls)
+* [Read CRL](#read-crl)
+* [Rotate CRLs](#rotate-crls)
+* [Generate Intermediate](#generate-intermediate)
+* [Set Signed Intermediate](#set-signed-intermediate)
+* [Read Certificate](#read-certificate)
+* [Generate Certificate](#generate-certificate)
+* [Revoke Certificate](#revoke-certificate)
+* [Create/Update Role](#create-update-role)
+* [Read Role](#read-role)
+* [List Roles](#list-roles)
+* [Delete Role](#delete-role)
+* [Generate Root](#generate-root)
+* [Delete Root](#delete-root)
+* [Sign Intermediate](#sign-intermediate)
+* [Sign Self-Issued](#sign-self-issued)
+* [Sign Certificate](#sign-certificate)
+* [Sign Verbatim](#sign-verbatim)
+* [Tidy](#tidy)
+
 ## Read CA Certificate
 
 This endpoint retrieves the CA certificate *in raw DER-encoded form*. This is a
-bare endpoint that does not return a standard Vault data structure. If `/pem` is
-added to the endpoint, the CA certificate is returned in PEM format.
+bare endpoint that does not return a standard Vault data structure and cannot
+be read by the Vault CLI. If `/pem` is added to the endpoint, the CA
+certificate is returned in PEM format.
 
 This is an unauthenticated endpoint.
 
@@ -45,7 +76,7 @@ $ curl \
 
 This endpoint retrieves the CA certificate chain, including the CA _in PEM
 format_. This is a bare endpoint that does not return a standard Vault data
-structure.
+structure and cannot be read by the Vault CLI.
 
 This is an unauthenticated endpoint.
 
@@ -110,6 +141,7 @@ This endpoint returns a list of the current certificates by serial number only.
 | Method   | Path                         | Produces               |
 | :------- | :--------------------------- | :--------------------- |
 | `LIST`   | `/pki/certs`                 | `200 application/json` |
+| `GET`    | `/pki/certs?list=true`       | `200 application/json` |
 
 
 ### Sample Request
@@ -431,8 +463,6 @@ $ curl \
     --data @payload.json \
     https://vault.rocks/v1/pki/intermediate/generate/internal
 ```
-
-### Sample Response
 
 ```json
 {
@@ -805,6 +835,7 @@ returned, not any values.
 | Method   | Path                         | Produces               |
 | :------- | :--------------------------- | :--------------------- |
 | `LIST`   | `/pki/roles`                 | `200 application/json` |
+| `GET`    | `/pki/roles?list=true`       | `200 application/json` |
 
 ### Sample Request
 
@@ -854,14 +885,18 @@ $ curl \
 
 ## Generate Root
 
-This endpoint generates a new self-signed CA certificate and private key. _This
-will overwrite any previously-existing private key and certificate._ If the path
-ends with `exported`, the private key will be returned in the response; if it is
-`internal` the private key will not be returned and *cannot be retrieved later*.
-Distribution points use the values set via `config/urls`.
+This endpoint generates a new self-signed CA certificate and private key. If
+the path ends with `exported`, the private key will be returned in the
+response; if it is `internal` the private key will not be returned and *cannot
+be retrieved later*.  Distribution points use the values set via `config/urls`.
 
-As with other issued certificates, Vault will automatically revoke the generated
-root at the end of its lease period; the CA certificate will sign its own CRL.
+As with other issued certificates, Vault will automatically revoke the
+generated root at the end of its lease period; the CA certificate will sign its
+own CRL.
+
+As of Vault 0.8.1, if a CA cert/key already exists within the backend, this
+function will return a 204 and will not overwrite it. Previous versions of
+Vault would overwrite the existing cert/key with new values.
 
 | Method   | Path                         | Produces               |
 | :------- | :--------------------------- | :--------------------- |
@@ -912,6 +947,12 @@ root at the end of its lease period; the CA certificate will sign its own CRL.
   Useful if the CN is not a hostname or email address, but is instead some
   human-readable identifier.
 
+- `permitted_dns_domains` `(string: "")` – A comma separated string (or, string
+  array) containing DNS domains for which certificates are allowed to be issued
+  or signed by this CA certificate. Supports subdomains via a `.` in front of
+  the domain, as per
+  [RFC](https://tools.ietf.org/html/rfc5280#section-4.2.1.10).
+
 ### Sample Payload
 
 ```json
@@ -946,6 +987,26 @@ $ curl \
 }
 ```
 
+## Delete Root
+
+This endpoint deletes the current CA key (the old CA certificate will still be
+accessible for reading until a new certificate/key are generated or uploaded).
+_This endpoint requires sudo/root privileges._
+
+| Method   | Path                         | Produces               |
+| :------- | :--------------------------- | :--------------------- |
+| `DELETE`   | `/pki/root`   | `204 (empty body)` |
+
+
+### Sample Request
+
+```
+$ curl \
+    --header "X-Vault-Token: ..." \
+    --request DELETE \
+    https://vault.rocks/v1/pki/root
+```
+
 ## Sign Intermediate
 
 This endpoint uses the configured CA certificate to issue a certificate with
@@ -974,7 +1035,8 @@ verbatim.
 
 - `ttl` `(string: "")` – Specifies the requested Time To Live (after which the
   certificate will be expired). This cannot be larger than the mount max (or, if
-  not set, the system max).
+  not set, the system max). However, this can be after the expiration of the
+  signing CA.
 
 - `format` `(string: "pem")` – Specifies the format for returned data. Can be
   `pem`, `der`, or `pem_bundle`. If `der`, the output is base64 encoded. If
@@ -1001,13 +1063,18 @@ verbatim.
   path; 3) Extensions requested in the CSR will be copied into the issued
   certificate.
 
+- `permitted_dns_domains` `(string: "")` – A comma separated string (or, string
+  array) containing DNS domains for which certificates are allowed to be issued
+  or signed by this CA certificate. Supports subdomains via a `.` in front of
+  the domain, as per
+  [RFC](https://tools.ietf.org/html/rfc5280#section-4.2.1.10).
+
 ### Sample Payload
 
 ```json
 {
   "csr": "...",
   "common_name": "example.com"
-
 }
 ```
 
@@ -1037,6 +1104,65 @@ $ curl \
   "auth": null
 }
 ```
+## Sign Self-Issued
+
+This endpoint uses the configured CA certificate to sign a self-issued
+certificate (which will usually be a self-signed certificate as well).
+
+**_This is an extremely privileged endpoint_**. The given certificate will be
+signed as-is with only minimal validation performed (is it a CA cert, and is it
+actually self-issued). The only values that will be changed will be the
+authority key ID, the issuer DN, and, if set, any distribution points.
+
+This is generally only needed for root certificate rolling in cases where you
+don't want/can't get access to a CSR (such as if it's a root stored in Vault
+where the key is not exposed). If you don't know whether you need this
+endpoint, you most likely should be using a different endpoint (such as
+`sign-intermediate`).
+
+This endpoint requires `sudo` capability.
+
+| Method   | Path                         | Produces               |
+| :------- | :--------------------------- | :--------------------- |
+| `POST`   | `/pki/root/sign-self-issued` | `200 application/json` |
+
+### Parameters
+
+- `certificate` `(string: <required>)` – Specifies the PEM-encoded self-issued certificate.
+
+### Sample Payload
+
+```json
+{
+  "certificate": "..."
+}
+```
+
+### Sample Request
+
+```
+$ curl \
+    --header "X-Vault-Token: ..." \
+    --request POST \
+    --data @payload.json \
+    https://vault.rocks/v1/pki/root/sign-self-issued
+```
+
+### Sample Response
+
+```json
+{
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": {
+    "certificate": "-----BEGIN CERTIFICATE-----\nMIIDzDCCAragAwIBAgIUOd0ukLcjH43TfTHFG9qE0FtlMVgwCwYJKoZIhvcNAQEL\n...\numkqeYeO30g1uYvDuWLXVA==\n-----END CERTIFICATE-----\n",
+    "issuing_ca": "-----BEGIN CERTIFICATE-----\nMIIDUTCCAjmgAwIBAgIJAKM+z4MSfw2mMA0GCSqGSIb3DQEBCwUAMBsxGTAXBgNV\n...\nG/7g4koczXLoUM3OQXd5Aq2cs4SS1vODrYmgbioFsQ3eDHd1fg==\n-----END CERTIFICATE-----\n",
+  },
+  "auth": null
+}
+```
+
 
 ## Sign Certificate
 

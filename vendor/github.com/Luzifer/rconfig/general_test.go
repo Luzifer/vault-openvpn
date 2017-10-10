@@ -15,6 +15,10 @@ var _ = Describe("Testing general parsing", func() {
 		SadFlag     string
 	}
 
+	type tValidated struct {
+		Test string `flag:"test" default:"" validate:"nonzero"`
+	}
+
 	var (
 		err  error
 		args []string
@@ -104,6 +108,21 @@ var _ = Describe("Testing general parsing", func() {
 		It("should have detected the positional arguments", func() {
 			Expect(Args()).To(Equal([]string{"positional1", "positional2"}))
 		})
+	})
+
+	Context("making use of the validator package", func() {
+		var cfgValidated tValidated
+
+		BeforeEach(func() {
+			cfgValidated = tValidated{}
+			args = []string{}
+		})
+
+		JustBeforeEach(func() {
+			err = parseAndValidate(&cfgValidated, args)
+		})
+
+		It("should have errored", func() { Expect(err).To(HaveOccurred()) })
 	})
 
 })

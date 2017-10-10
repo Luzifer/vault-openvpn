@@ -42,14 +42,22 @@ type Config struct {
 	DefaultLeaseTTL    time.Duration `hcl:"-"`
 	DefaultLeaseTTLRaw interface{}   `hcl:"default_lease_ttl"`
 
-	ClusterName string `hcl:"cluster_name"`
+	ClusterName         string `hcl:"cluster_name"`
+	ClusterCipherSuites string `hcl:"cluster_cipher_suites"`
+
+	PluginDirectory string `hcl:"plugin_directory"`
+
+	PidFile              string      `hcl:"pid_file"`
+	EnableRawEndpoint    bool        `hcl:"-"`
+	EnableRawEndpointRaw interface{} `hcl:"raw_storage_endpoint"`
 }
 
 // DevConfig is a Config that is used for dev mode of Vault.
 func DevConfig(ha, transactional bool) *Config {
 	ret := &Config{
-		DisableCache: false,
-		DisableMlock: true,
+		DisableCache:      false,
+		DisableMlock:      true,
+		EnableRawEndpoint: true,
 
 		Storage: &Storage{
 			Type: "inmem",
@@ -58,9 +66,11 @@ func DevConfig(ha, transactional bool) *Config {
 		Listeners: []*Listener{
 			&Listener{
 				Type: "tcp",
-				Config: map[string]string{
-					"address":     "127.0.0.1:8200",
-					"tls_disable": "1",
+				Config: map[string]interface{}{
+					"address":                         "127.0.0.1:8200",
+					"tls_disable":                     true,
+					"proxy_protocol_behavior":         "allow_authorized",
+					"proxy_protocol_authorized_addrs": "127.0.0.1:8200",
 				},
 			},
 		},
@@ -68,9 +78,6 @@ func DevConfig(ha, transactional bool) *Config {
 		EnableUI: true,
 
 		Telemetry: &Telemetry{},
-
-		MaxLeaseTTL:     32 * 24 * time.Hour,
-		DefaultLeaseTTL: 32 * 24 * time.Hour,
 	}
 
 	switch {
@@ -88,7 +95,7 @@ func DevConfig(ha, transactional bool) *Config {
 // Listener is the listener configuration for the server.
 type Listener struct {
 	Type   string
-	Config map[string]string
+	Config map[string]interface{}
 }
 
 func (l *Listener) GoString() string {
@@ -195,6 +202,15 @@ type Telemetry struct {
 	// (e.g. a specific geo location or datacenter, dc:sfo)
 	// Default: none
 	CirconusBrokerSelectTag string `hcl:"circonus_broker_select_tag"`
+
+	// Dogstats:
+	// DogStatsdAddr is the address of a dogstatsd instance. If provided,
+	// metrics will be sent to that instance
+	DogStatsDAddr string `hcl:"dogstatsd_addr"`
+
+	// DogStatsdTags are the global tags that should be sent with each packet to dogstatsd
+	// It is a list of strings, where each string looks like "my_tag_name:my_tag_value"
+	DogStatsDTags []string `hcl:"dogstatsd_tags"`
 }
 
 func (s *Telemetry) GoString() string {
@@ -267,9 +283,29 @@ func (c *Config) Merge(c2 *Config) *Config {
 		result.ClusterName = c2.ClusterName
 	}
 
+	result.ClusterCipherSuites = c.ClusterCipherSuites
+	if c2.ClusterCipherSuites != "" {
+		result.ClusterCipherSuites = c2.ClusterCipherSuites
+	}
+
 	result.EnableUI = c.EnableUI
 	if c2.EnableUI {
 		result.EnableUI = c2.EnableUI
+	}
+
+	result.EnableRawEndpoint = c.EnableRawEndpoint
+	if c2.EnableRawEndpoint {
+		result.EnableRawEndpoint = c2.EnableRawEndpoint
+	}
+
+	result.PluginDirectory = c.PluginDirectory
+	if c2.PluginDirectory != "" {
+		result.PluginDirectory = c2.PluginDirectory
+	}
+
+	result.PidFile = c.PidFile
+	if c2.PidFile != "" {
+		result.PidFile = c2.PidFile
 	}
 
 	return result
@@ -285,9 +321,8 @@ func LoadConfig(path string, logger log.Logger) (*Config, error) {
 
 	if fi.IsDir() {
 		return LoadConfigDir(path, logger)
-	} else {
-		return LoadConfigFile(path, logger)
 	}
+	return LoadConfigFile(path, logger)
 }
 
 // LoadConfigFile loads the configuration from the given file.
@@ -342,13 +377,18 @@ func ParseConfig(d string, logger log.Logger) (*Config, error) {
 		}
 	}
 
+	if result.EnableRawEndpointRaw != nil {
+		if result.EnableRawEndpoint, err = parseutil.ParseBool(result.EnableRawEndpointRaw); err != nil {
+			return nil, err
+		}
+	}
+
 	list, ok := obj.Node.(*ast.ObjectList)
 	if !ok {
 		return nil, fmt.Errorf("error parsing: file doesn't contain a root object")
 	}
 
 	valid := []string{
-		"atlas",
 		"storage",
 		"ha_storage",
 		"backend",
@@ -363,6 +403,10 @@ func ParseConfig(d string, logger log.Logger) (*Config, error) {
 		"default_lease_ttl",
 		"max_lease_ttl",
 		"cluster_name",
+		"cluster_cipher_suites",
+		"plugin_directory",
+		"pid_file",
+		"raw_storage_endpoint",
 	}
 	if err := checkHCLKeys(list, valid); err != nil {
 		return nil, err
@@ -641,8 +685,6 @@ func parseHSMs(result *Config, list *ast.ObjectList) error {
 }
 
 func parseListeners(result *Config, list *ast.ObjectList) error {
-	var foundAtlas bool
-
 	listeners := make([]*Listener, 0, len(list.Items))
 	for _, item := range list.Items {
 		key := "listener"
@@ -656,6 +698,8 @@ func parseListeners(result *Config, list *ast.ObjectList) error {
 			"endpoint",
 			"infrastructure",
 			"node_id",
+			"proxy_protocol_behavior",
+			"proxy_protocol_authorized_addrs",
 			"tls_disable",
 			"tls_cert_file",
 			"tls_key_file",
@@ -663,35 +707,19 @@ func parseListeners(result *Config, list *ast.ObjectList) error {
 			"tls_cipher_suites",
 			"tls_prefer_server_cipher_suites",
 			"tls_require_and_verify_client_cert",
+			"tls_client_ca_file",
 			"token",
 		}
 		if err := checkHCLKeys(item.Val, valid); err != nil {
 			return multierror.Prefix(err, fmt.Sprintf("listeners.%s:", key))
 		}
 
-		var m map[string]string
+		var m map[string]interface{}
 		if err := hcl.DecodeObject(&m, item.Val); err != nil {
 			return multierror.Prefix(err, fmt.Sprintf("listeners.%s:", key))
 		}
 
 		lnType := strings.ToLower(key)
-
-		if lnType == "atlas" {
-			if foundAtlas {
-				return multierror.Prefix(fmt.Errorf("only one listener of type 'atlas' is permitted"), fmt.Sprintf("listeners.%s", key))
-			}
-
-			foundAtlas = true
-			if m["token"] == "" {
-				return multierror.Prefix(fmt.Errorf("'token' must be specified for an Atlas listener"), fmt.Sprintf("listeners.%s", key))
-			}
-			if m["infrastructure"] == "" {
-				return multierror.Prefix(fmt.Errorf("'infrastructure' must be specified for an Atlas listener"), fmt.Sprintf("listeners.%s", key))
-			}
-			if m["node_id"] == "" {
-				return multierror.Prefix(fmt.Errorf("'node_id' must be specified for an Atlas listener"), fmt.Sprintf("listeners.%s", key))
-			}
-		}
 
 		listeners = append(listeners, &Listener{
 			Type:   lnType,
@@ -727,6 +755,8 @@ func parseTelemetry(result *Config, list *ast.ObjectList) error {
 		"circonus_broker_id",
 		"circonus_broker_select_tag",
 		"disable_hostname",
+		"dogstatsd_addr",
+		"dogstatsd_tags",
 		"statsd_address",
 		"statsite_address",
 	}
