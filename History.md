@@ -1,3 +1,7 @@
+# 1.1.2 / 2017-11-10
+
+  * Add dockerized version
+
 # 1.1.1 / 2017-10-10
 
   * Fix: Don't panic on non existent PKI path
