@@ -47,6 +47,7 @@ var (
 		CertTTL    time.Duration `flag:"ttl" vardefault:"ttl" description:"Set the TTL for this certificate"`
 
 		LogLevel       string `flag:"log-level" vardefault:"log-level" description:"Log level to use (debug, info, warning, error)"`
+		Sort           string `flag:"sort" vardefault:"sort" description:"How to sort list output (fqdn, issuedate, expiredate)"`
 		TemplatePath   string `flag:"template-path" vardefault:"template-path" description:"Path to read the client.conf / server.conf template from"`
 		VersionAndExit bool   `flag:"version" default:"false" description:"Prints current version and exits"`
 	}{}
@@ -57,6 +58,7 @@ var (
 		"auto-revoke":    "true",
 		"ttl":            "8760h",
 		"log-level":      "info",
+		"sort":           "fqdn",
 		"template-path":  ".",
 	}
 
@@ -243,10 +245,19 @@ func listCertificates() error {
 	}
 
 	sort.Slice(lines, func(i, j int) bool {
-		if lines[i].FQDN == lines[j].FQDN {
+		switch cfg.Sort {
+		case "issuedate":
 			return lines[i].NotBefore.Before(lines[j].NotBefore)
+
+		case "expiredate":
+			return lines[i].NotAfter.Before(lines[j].NotAfter)
+
+		default:
+			if lines[i].FQDN == lines[j].FQDN {
+				return lines[i].NotBefore.Before(lines[j].NotBefore)
+			}
+			return lines[i].FQDN < lines[j].FQDN
 		}
-		return lines[i].FQDN < lines[j].FQDN
 	})
 
 	for _, line := range lines {
