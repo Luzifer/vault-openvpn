@@ -1,3 +1,7 @@
+# 1.2.0 / 2018-01-13
+
+  * Allow sorting by date instead of FQDN
+
 # 1.1.2 / 2017-11-10
 
   * Add dockerized version
