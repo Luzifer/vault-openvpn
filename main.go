@@ -370,7 +370,10 @@ func revokeCertificateByFQDN(fqdn string) error {
 
 	for _, cert := range certs {
 		if cert.Subject.CommonName == fqdn {
-			return revokeCertificateBySerial(certutil.GetHexFormatted(cert.SerialNumber.Bytes(), ":"))
+			err := revokeCertificateBySerial(certutil.GetHexFormatted(cert.SerialNumber.Bytes(), ":"))
+	    if err != nil {
+		    return err
+	    }
 		}
 	}
 
