@@ -1,5 +1,7 @@
-![license](https://badges.fyi/github/license/Luzifer/vault-openvpn)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Luzifer/vault-openvpn)](https://goreportcard.com/report/github.com/Luzifer/vault-openvpn)
+![](https://badges.fyi/github/license/Luzifer/vault-openvpn)
+![](https://badges.fyi/github/downloads/Luzifer/vault-openvpn)
+![](https://badges.fyi/github/latest-release/Luzifer/vault-openvpn)
 
 # Luzifer / vault-openvpn
 
