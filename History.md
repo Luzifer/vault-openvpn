@@ -1,3 +1,7 @@
+# 1.3.0 / 2018-01-30
+
+  * revoke all existing certificates for FQDN instead of only first one (Thanks @wimfabri)
+
 # 1.2.0 / 2018-01-13
 
   * Allow sorting by date instead of FQDN
