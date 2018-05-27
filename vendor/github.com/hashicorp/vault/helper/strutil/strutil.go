@@ -6,7 +6,21 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/hashicorp/errwrap"
+	glob "github.com/ryanuber/go-glob"
 )
+
+// StrListContainsGlob looks for a string in a list of strings and allows
+// globs.
+func StrListContainsGlob(haystack []string, needle string) bool {
+	for _, item := range haystack {
+		if glob.Glob(item, needle) {
+			return true
+		}
+	}
+	return false
+}
 
 // StrListContains looks for a string in a list of strings.
 func StrListContains(haystack []string, needle string) bool {
@@ -76,7 +90,7 @@ func ParseKeyValues(input string, out map[string]string, sep string) error {
 		key := strings.TrimSpace(shards[0])
 		value := strings.TrimSpace(shards[1])
 		if key == "" || value == "" {
-			return fmt.Errorf("invalid <key,value> pair: key:'%s' value:'%s'", key, value)
+			return fmt.Errorf("invalid <key,value> pair: key: %q value: %q", key, value)
 		}
 		out[key] = value
 	}
@@ -91,7 +105,7 @@ func ParseKeyValues(input string, out map[string]string, sep string) error {
 // * Base64 encoded string containing comma separated list of
 //   `<key>=<value>` pairs
 //
-// Input will be parsed into the output paramater, which should
+// Input will be parsed into the output parameter, which should
 // be a non-nil map[string]string.
 func ParseArbitraryKeyValues(input string, out map[string]string, sep string) error {
 	input = strings.TrimSpace(input)
@@ -116,14 +130,14 @@ func ParseArbitraryKeyValues(input string, out map[string]string, sep string) er
 		// If JSON unmarshalling fails, consider that the input was
 		// supplied as a comma separated string of 'key=value' pairs.
 		if err = ParseKeyValues(input, out, sep); err != nil {
-			return fmt.Errorf("failed to parse the input: %v", err)
+			return errwrap.Wrapf("failed to parse the input: {{err}}", err)
 		}
 	}
 
 	// Validate the parsed input
 	for key, value := range out {
 		if key != "" && value == "" {
-			return fmt.Errorf("invalid value for key '%s'", key)
+			return fmt.Errorf("invalid value for key %q", key)
 		}
 	}
 
@@ -154,7 +168,7 @@ func ParseStringSlice(input string, sep string) []string {
 // * JSON string
 // * Base64 encoded JSON string
 // * `sep` separated list of values
-// * Base64-encoded string containting a `sep` separated list of values
+// * Base64-encoded string containing a `sep` separated list of values
 //
 // Note that the separator is ignored if the input is found to already be in a
 // structured format (e.g., JSON)
@@ -269,7 +283,7 @@ func EquivalentSlices(a, b []string) bool {
 	return true
 }
 
-// StrListDelete removes the first occurance of the given item from the slice
+// StrListDelete removes the first occurrence of the given item from the slice
 // of strings if the item exists.
 func StrListDelete(s []string, d string) []string {
 	if s == nil {
