@@ -1,3 +1,9 @@
+# 1.5.0 / 2018-05-27
+
+  * Feat: Switch to cobra as a CLI framework
+  * Fix: Replace deprecated build image
+  * Fix: Missing copyright in LICENSE
+
 # 1.4.0 / 2018-05-27
 
 - Add support for imported root certificates by reading `ca_chain`  
