@@ -275,9 +275,12 @@ func generateCertificateConfig(tplName, fqdn string) error {
 		}
 	}
 
-	caCert, err := getCACert()
+	caCert, err := getCAChain()
 	if err != nil {
-		return fmt.Errorf("Could not load CA certificate: %s", err)
+		caCert, err = getCACert()
+		if err != nil {
+			return fmt.Errorf("Could not load CA certificate: %s", err)
+		}
 	}
 
 	tplv, err := generateCertificate(fqdn)
@@ -402,8 +405,27 @@ func revokeCertificateBySerial(serial string) error {
 	return nil
 }
 
-func getCACert() (string, error) {
+func getCAChain() (string, error) {
 	path := strings.Join([]string{strings.Trim(cfg.PKIMountPoint, "/"), "cert", "ca_chain"}, "/")
+	cs, err := client.Logical().Read(path)
+	if err != nil {
+		return "", errors.New("Unable to read ca_chain: " + err.Error())
+	}
+
+	if cs.Data == nil {
+		return "", errors.New("Unable to read ca_chain: Empty")
+	}
+
+	cert, ok := cs.Data["certificate"]
+	if !ok || len(cert.(string)) == 0 {
+		return "", errors.New("Unable to read ca_chain: Empty")
+	}
+
+	return cert.(string), nil
+}
+
+func getCACert() (string, error) {
+	path := strings.Join([]string{strings.Trim(cfg.PKIMountPoint, "/"), "cert", "ca"}, "/")
 	cs, err := client.Logical().Read(path)
 	if err != nil {
 		return "", errors.New("Unable to read certificate: " + err.Error())
