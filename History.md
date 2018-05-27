@@ -1,3 +1,10 @@
+# 1.4.0 / 2018-05-27
+
+- Add support for imported root certificates by reading `ca_chain`  
+  Thanks @wimfabri for the addition
+- Add support for directly writing `tls-auth` to harden OpenVPN connection  
+  Thanks @callidus for the addition
+
 # 1.3.0 / 2018-01-30
 
   * revoke all existing certificates for FQDN instead of only first one (Thanks @wimfabri)
