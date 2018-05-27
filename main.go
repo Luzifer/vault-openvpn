@@ -45,7 +45,7 @@ var (
 
 		AutoRevoke bool          `flag:"auto-revoke" vardefault:"auto-revoke" description:"Automatically revoke older certificates for this FQDN"`
 		CertTTL    time.Duration `flag:"ttl" vardefault:"ttl" description:"Set the TTL for this certificate"`
-		OvpnKey    string        `flag:"ovpn-key" vardefault:"secret/ovpn" description:"Specify a secret name that holds an OpenVPN shared key"`
+		OVPNKey    string        `flag:"ovpn-key" vardefault:"ovpn-key" description:"Specify a secret name that holds an OpenVPN shared key"`
 
 		LogLevel       string `flag:"log-level" vardefault:"log-level" description:"Log level to use (debug, info, warning, error)"`
 		Sort           string `flag:"sort" vardefault:"sort" description:"How to sort list output (fqdn, issuedate, expiredate)"`
@@ -54,13 +54,14 @@ var (
 	}{}
 
 	defaultConfig = map[string]string{
+		"auto-revoke":    "true",
+		"log-level":      "info",
+		"ovpn-key":       "",
 		"pki-mountpoint": "/pki",
 		"pki-role":       "openvpn",
-		"auto-revoke":    "true",
-		"ttl":            "8760h",
-		"log-level":      "info",
 		"sort":           "fqdn",
 		"template-path":  ".",
+		"ttl":            "8760h",
 	}
 
 	version = "dev"
@@ -72,7 +73,7 @@ type templateVars struct {
 	CertAuthority string
 	Certificate   string
 	PrivateKey    string
-	TlsAuth       string
+	TLSAuth       string
 }
 
 type listCertificatesTableRow struct {
@@ -292,10 +293,10 @@ func generateCertificateConfig(tplName, fqdn string) error {
 
 	tplv.CertAuthority = caCert
 
-	if cfg.OvpnKey != "" {
-		tplv.TlsAuth, err = fetchOvpnKey(fqdn)
+	if cfg.OVPNKey != "" {
+		tplv.TLSAuth, err = fetchOVPNKey()
 		if err != nil {
-			return fmt.Errorf("Could not fetch TlsAuth key: %s", err)
+			return fmt.Errorf("Could not fetch TLSAuth key: %s", err)
 		}
 	}
 
@@ -443,18 +444,24 @@ func getCACert() (string, error) {
 	return cs.Data["certificate"].(string), nil
 }
 
-func fetchOvpnKey(fqdn string) (string, error) {
-	path := strings.Join([]string{"secret", "data", strings.Trim(cfg.OvpnKey, "/")}, "/")
+func fetchOVPNKey() (string, error) {
+	path := strings.Trim(cfg.OVPNKey, "/")
 	secret, err := client.Logical().Read(path)
 
 	if err != nil {
 		return "", err
 	}
 
-	if secret == nil {
+	if secret == nil || secret.Data == nil {
 		return "", errors.New("Got no data from backend")
 	}
-	return secret.Data["data"].(map[string]interface {})["key"].(string), nil
+
+	key, ok := secret.Data["key"]
+	if !ok {
+		return "", errors.New("Within specified secret no entry named 'key' was found")
+	}
+
+	return key.(string), nil
 }
 
 func generateCertificate(fqdn string) (*templateVars, error) {
