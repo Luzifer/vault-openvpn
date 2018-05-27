@@ -88,3 +88,32 @@ In case someone needs to get removed from your OpenVPN there is also a revoke:
 ```
 
 To have revokes being executed by OpenVPN you need to periodically update the CRL file OpenVPN reads. For my solution see the `living-example` in the `example` folder.
+
+## Using Tls Auth
+OpenVPN highly recommends using TLS Authentication hardening, see https://community.openvpn.net/openvpn/wiki/GettingStartedwithOVPN#TLSAuthentication
+
+This requires the use of a pre-shared key, if you want to use it you will first need to generate tls auth key and then upload it to vault.
+
+```bash
+openvpn --genkey --secret openvpn.key
+vault kv put secret/ovpn key=@openvpn.key
+```
+
+In the above example we call the secret "ovpn" but you can call it anything you want, so long as its a known value.
+The key must be placed into both the client and server configurations and must match, edit both config templates to include a section as shown below
+
+```
+<tls-auth>
+{{ .TlsAuth }}
+</tls-auth>
+```
+
+Now run vault-openvpn passing in the name of the secret that holds our key, e.g.
+
+```bash
+# for the server config
+vault-openvpn --auto-revoke --ovpn-key ovpn --pki-mountpoint luzifer_io server edda.openvpn.luzifer.io
+
+# and for the client config
+vault-openvpn --auto-revoke --ovpn-key ovpn --pki-mountpoint luzifer_io client workwork01.openvpn.luzifer.io
+```
