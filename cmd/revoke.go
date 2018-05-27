@@ -9,8 +9,9 @@ import (
 
 // revokeCmd represents the revoke command
 var revokeCmd = &cobra.Command{
-	Use:   "revoke <fqdn>",
-	Short: "Revoke all certificates matching to FQDN",
+	Use:     "revoke <fqdn>",
+	Short:   "Revoke all certificates matching to FQDN",
+	PreRunE: func(cmd *cobra.Command, args []string) error { return initVaultClient() },
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 || !validateFQDN(args[0]) {
 			return errors.New("You need to provide a valid FQDN")

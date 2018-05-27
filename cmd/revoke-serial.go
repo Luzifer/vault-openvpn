@@ -12,8 +12,9 @@ import (
 
 // revokeSerialCmd represents the revoke-serial command
 var revokeSerialCmd = &cobra.Command{
-	Use:   "revoke-serial <serial>",
-	Short: "Revoke certificate by serial number",
+	Use:     "revoke-serial <serial>",
+	Short:   "Revoke certificate by serial number",
+	PreRunE: func(cmd *cobra.Command, args []string) error { return initVaultClient() },
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 || !validateSerial(args[0]) {
 			return errors.New("You need to provide a valid serial")

@@ -12,8 +12,9 @@ import (
 
 // listCmd represents the list command
 var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all valid (not expired, not revoked) certificates",
+	Use:     "list",
+	Short:   "List all valid (not expired, not revoked) certificates",
+	PreRunE: func(cmd *cobra.Command, args []string) error { return initVaultClient() },
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return listCertificates()
 	},

@@ -10,8 +10,9 @@ import (
 
 // clientCmd represents the client command
 var clientCmd = &cobra.Command{
-	Use:   "client",
-	Short: "Generate certificate and output client config",
+	Use:     "client <fqdn>",
+	Short:   "Generate certificate and output client config",
+	PreRunE: func(cmd *cobra.Command, args []string) error { return initVaultClient() },
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 || !validateFQDN(args[0]) {
 			return errors.New("You need to provide a valid FQDN")

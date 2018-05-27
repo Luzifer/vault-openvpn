@@ -52,23 +52,6 @@ var RootCmd = &cobra.Command{
 			return fmt.Errorf("Unable to interprete log level: %s", err)
 		}
 
-		// Ensure token is present
-		if viper.GetString("vault-token") == "" {
-			return fmt.Errorf("You need to set vault-token")
-		}
-
-		clientConfig := api.DefaultConfig()
-		clientConfig.ReadEnvironment()
-		clientConfig.Address = viper.GetString("vault-addr")
-
-		var err error
-		client, err = api.NewClient(clientConfig)
-		if err != nil {
-			return fmt.Errorf("Could not create Vault client: %s", err)
-		}
-
-		client.SetToken(viper.GetString("vault-token"))
-
 		return nil
 	},
 }
