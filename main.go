@@ -403,7 +403,7 @@ func revokeCertificateBySerial(serial string) error {
 }
 
 func getCACert() (string, error) {
-	path := strings.Join([]string{strings.Trim(cfg.PKIMountPoint, "/"), "cert", "ca"}, "/")
+	path := strings.Join([]string{strings.Trim(cfg.PKIMountPoint, "/"), "cert", "ca_chain"}, "/")
 	cs, err := client.Logical().Read(path)
 	if err != nil {
 		return "", errors.New("Unable to read certificate: " + err.Error())
