@@ -1,3 +1,7 @@
+# 1.6.0 / 2018-06-14
+
+  * Allow listing expired certificates for debugging purposes
+
 # 1.5.2 / 2018-06-14
 
   * Fix: Do not list expired certificates
