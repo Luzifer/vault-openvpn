@@ -36,6 +36,12 @@ func fetchCertificateBySerial(serial string) (*x509.Certificate, bool, error) {
 
 	data, _ := pem.Decode([]byte(cs.Data["certificate"].(string)))
 	cert, err := x509.ParseCertificate(data.Bytes)
+
+	if cert.NotAfter.Before(time.Now()) {
+		// Hide expired certs (they will not get the revoke-timestamp set on revoke)
+		revoked = true
+	}
+
 	return cert, revoked, err
 }
 
