@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/vault/api"
@@ -80,8 +81,7 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&cfg.LogLevel, "log-level", "info", "Log level to use (debug, info, warning, error)")
 
 	viper.BindPFlags(RootCmd.PersistentFlags())
-	viper.BindEnv("vault-addr", "VAULT_ADDR")
-	viper.BindEnv("vault-token", "VAULT_TOKEN")
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
 	if tok := vaultTokenFromDisk(); tok != "" {
 		viper.SetDefault("vault-token", tok)
