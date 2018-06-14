@@ -26,7 +26,7 @@ func init() {
 }
 
 func revokeCertificateByFQDN(fqdn string) error {
-	certs, err := fetchValidCertificatesFromVault()
+	certs, err := fetchCertificatesFromVault(false)
 	if err != nil {
 		return err
 	}

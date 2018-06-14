@@ -29,11 +29,11 @@ func init() {
 }
 
 func revokeCertificateBySerial(serial string) error {
-	cert, revoked, err := fetchCertificateBySerial(serial)
+	cert, revoked, expired, err := fetchCertificateBySerial(serial)
 	if err != nil {
 		return err
 	}
-	if revoked {
+	if revoked || expired {
 		return nil
 	}
 

@@ -18,11 +18,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-func fetchCertificateBySerial(serial string) (*x509.Certificate, bool, error) {
+func fetchCertificateBySerial(serial string) (*x509.Certificate, bool, bool, error) {
 	path := strings.Join([]string{strings.Trim(viper.GetString("pki-mountpoint"), "/"), "cert", serial}, "/")
 	cs, err := client.Logical().Read(path)
 	if err != nil {
-		return nil, false, fmt.Errorf("Unable to read certificate: %s", err.Error())
+		return nil, false, false, fmt.Errorf("Unable to read certificate: %s", err.Error())
 	}
 
 	revoked := false
@@ -37,12 +37,7 @@ func fetchCertificateBySerial(serial string) (*x509.Certificate, bool, error) {
 	data, _ := pem.Decode([]byte(cs.Data["certificate"].(string)))
 	cert, err := x509.ParseCertificate(data.Bytes)
 
-	if cert.NotAfter.Before(time.Now()) {
-		// Hide expired certs (they will not get the revoke-timestamp set on revoke)
-		revoked = true
-	}
-
-	return cert, revoked, err
+	return cert, revoked, cert.NotAfter.Before(time.Now()), err
 }
 
 func fetchOVPNKey() (string, error) {
@@ -65,7 +60,7 @@ func fetchOVPNKey() (string, error) {
 	return key.(string), nil
 }
 
-func fetchValidCertificatesFromVault() ([]*x509.Certificate, error) {
+func fetchCertificatesFromVault(listExpired bool) ([]*x509.Certificate, error) {
 	res := []*x509.Certificate{}
 
 	path := strings.Join([]string{strings.Trim(viper.GetString("pki-mountpoint"), "/"), "certs"}, "/")
@@ -83,12 +78,16 @@ func fetchValidCertificatesFromVault() ([]*x509.Certificate, error) {
 	}
 
 	for _, serial := range secret.Data["keys"].([]interface{}) {
-		cert, revoked, err := fetchCertificateBySerial(serial.(string))
+		cert, revoked, expired, err := fetchCertificateBySerial(serial.(string))
 		if err != nil {
 			return res, err
 		}
 
 		if revoked {
+			continue
+		}
+
+		if !listExpired && expired {
 			continue
 		}
 

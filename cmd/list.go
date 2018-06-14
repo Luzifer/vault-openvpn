@@ -24,6 +24,7 @@ func init() {
 	RootCmd.AddCommand(listCmd)
 
 	listCmd.Flags().StringVar(&cfg.Sort, "sort", "fqdn", "How to sort list output (fqdn, issuedate, expiredate)")
+	listCmd.Flags().Bool("list-expired", false, "Also list expired certificates")
 	viper.BindPFlags(listCmd.Flags())
 }
 
@@ -34,7 +35,7 @@ func listCertificates() error {
 
 	lines := []listCertificatesTableRow{}
 
-	certs, err := fetchValidCertificatesFromVault()
+	certs, err := fetchCertificatesFromVault(viper.GetBool("list-expired"))
 	if err != nil {
 		return err
 	}
