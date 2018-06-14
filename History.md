@@ -1,3 +1,7 @@
+# 1.7.0 / 2018-06-15
+
+  * Allow listing certs as JSON for automated processing
+
 # 1.6.0 / 2018-06-14
 
   * Allow listing expired certificates for debugging purposes
