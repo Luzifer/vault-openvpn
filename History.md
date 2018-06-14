@@ -1,3 +1,8 @@
+# 1.5.1 / 2018-06-14
+
+  * Fix: Use a replacer to convert dashes
+  * Fix: Allow overwriting the vault token by setting only the default
+
 # 1.5.0 / 2018-05-27
 
   * Feat: Switch to cobra as a CLI framework
