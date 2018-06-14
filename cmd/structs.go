@@ -10,10 +10,10 @@ type templateVars struct {
 }
 
 type listCertificatesTableRow struct {
-	FQDN      string
-	NotBefore time.Time
-	NotAfter  time.Time
-	Serial    string
+	FQDN      string    `json:"fqdn"`
+	NotBefore time.Time `json:"not_before"`
+	NotAfter  time.Time `json:"not_after"`
+	Serial    string    `json:"serial"`
 }
 
 func (l listCertificatesTableRow) ToLine() []string {

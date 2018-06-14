@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"sort"
 
@@ -25,14 +26,11 @@ func init() {
 
 	listCmd.Flags().StringVar(&cfg.Sort, "sort", "fqdn", "How to sort list output (fqdn, issuedate, expiredate)")
 	listCmd.Flags().Bool("list-expired", false, "Also list expired certificates")
+	listCmd.Flags().String("format", "table", "Format to display the certificates in (table, json)")
 	viper.BindPFlags(listCmd.Flags())
 }
 
 func listCertificates() error {
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"FQDN", "Not Before", "Not After", "Serial"})
-	table.SetBorder(false)
-
 	lines := []listCertificatesTableRow{}
 
 	certs, err := fetchCertificatesFromVault(viper.GetBool("list-expired"))
@@ -65,10 +63,20 @@ func listCertificates() error {
 		}
 	})
 
-	for _, line := range lines {
-		table.Append(line.ToLine())
-	}
+	switch viper.GetString("format") {
+	case "json":
+		return json.NewEncoder(os.Stdout).Encode(lines)
 
-	table.Render()
-	return nil
+	default:
+		table := tablewriter.NewWriter(os.Stdout)
+		table.SetHeader([]string{"FQDN", "Not Before", "Not After", "Serial"})
+		table.SetBorder(false)
+
+		for _, line := range lines {
+			table.Append(line.ToLine())
+		}
+
+		table.Render()
+		return nil
+	}
 }
