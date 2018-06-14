@@ -84,7 +84,7 @@ func init() {
 	viper.BindEnv("vault-token", "VAULT_TOKEN")
 
 	if tok := vaultTokenFromDisk(); tok != "" {
-		viper.Set("vault-token", tok)
+		viper.SetDefault("vault-token", tok)
 	}
 }
 
