@@ -1,3 +1,7 @@
+# 1.5.2 / 2018-06-14
+
+  * Fix: Do not list expired certificates
+
 # 1.5.1 / 2018-06-14
 
   * Fix: Use a replacer to convert dashes
