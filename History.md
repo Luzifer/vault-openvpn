@@ -1,3 +1,8 @@
+# 1.8.0 / 2018-10-08
+
+  * Deps: Update dependencies
+  * Add dhparam generation support
+
 # 1.7.0 / 2018-06-15
 
   * Allow listing certs as JSON for automated processing
