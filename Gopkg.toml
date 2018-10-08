@@ -30,6 +30,10 @@
   version = "0.10.1"
 
 [[constraint]]
+  name = "github.com/Luzifer/go-dhparam"
+  version = "^1.0.0"
+
+[[constraint]]
   branch = "master"
   name = "github.com/mitchellh/go-homedir"
 
@@ -50,5 +54,6 @@
   version = "1.0.2"
 
 [prune]
+  non-go = true
   go-tests = true
   unused-packages = true

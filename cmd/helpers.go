@@ -14,7 +14,7 @@ import (
 	"text/template"
 	"time"
 
-	dhparam "github.com/Luzifer/go-dhparams"
+	dhparam "github.com/Luzifer/go-dhparam"
 	"github.com/hashicorp/vault/api"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
