@@ -9,10 +9,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
 
+	dhparam "github.com/Luzifer/go-dhparams"
 	"github.com/hashicorp/vault/api"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -215,7 +217,9 @@ func renderTemplate(tplName string, tplv *templateVars) error {
 		return err
 	}
 
-	tpl, err := template.New("tpl").Parse(string(raw))
+	tpl, err := template.New("tpl").Funcs(template.FuncMap{
+		"dhparam": generateDHParam,
+	}).Parse(string(raw))
 	if err != nil {
 		return err
 	}
@@ -232,4 +236,35 @@ func validateFQDN(fqdn string) bool {
 func validateSerial(serial string) bool {
 	// Also very basic check, also here Vault does the real validation
 	return len(strings.Split(serial, ":")) > 1
+}
+
+func generateDHParam(name string, v ...string) (interface{}, error) {
+	bits, err := strconv.Atoi(name)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to parse bit size: %s", err)
+	}
+
+	var generator int = 2
+
+	if len(v) > 0 {
+		if generator, err = strconv.Atoi(v[0]); err != nil {
+			return nil, fmt.Errorf("Unable to parse generator: %s", err)
+		}
+
+		if generator != 2 && generator != 5 {
+			return nil, errors.New("Only generators 2 and 5 are supported")
+		}
+	}
+
+	dh, err := dhparam.Generate(bits, dhparam.Generator(generator), nil)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to generate DH parameters: %s", err)
+	}
+
+	p, err := dh.ToPEM()
+	if err != nil {
+		return nil, fmt.Errorf("Unable to encode DH parameters: %s", err)
+	}
+
+	return string(p), nil
 }
