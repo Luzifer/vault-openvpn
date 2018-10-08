@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -238,19 +237,14 @@ func validateSerial(serial string) bool {
 	return len(strings.Split(serial, ":")) > 1
 }
 
-func generateDHParam(name string, v ...string) (interface{}, error) {
-	bits, err := strconv.Atoi(name)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to parse bit size: %s", err)
-	}
-
-	var generator int = 2
+func generateDHParam(bits int, v ...int) (interface{}, error) {
+	var (
+		err       error
+		generator int = 2
+	)
 
 	if len(v) > 0 {
-		if generator, err = strconv.Atoi(v[0]); err != nil {
-			return nil, fmt.Errorf("Unable to parse generator: %s", err)
-		}
-
+		generator = v[0]
 		if generator != 2 && generator != 5 {
 			return nil, errors.New("Only generators 2 and 5 are supported")
 		}
@@ -266,5 +260,5 @@ func generateDHParam(name string, v ...string) (interface{}, error) {
 		return nil, fmt.Errorf("Unable to encode DH parameters: %s", err)
 	}
 
-	return string(p), nil
+	return strings.TrimSpace(string(p)), nil
 }
