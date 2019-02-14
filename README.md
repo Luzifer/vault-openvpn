@@ -127,3 +127,14 @@ $ vault-openvpn --auto-revoke --ovpn-key secret/ovpn --pki-mountpoint luzifer_io
 # for the client config
 $ vault-openvpn --auto-revoke --ovpn-key secret/ovpn --pki-mountpoint luzifer_io client workwork01.openvpn.luzifer.io
 ```
+
+Pay attention when using a **Vault KV v2 backend**: You need to specify the path slighty different and use `vault-openvpn` v1.9.0 and above.
+
+```console
+$ openvpn --genkey --secret openvpn.key
+$ vault kv put secret/vault-openvpn/ovpn key=@openvpn.key
+
+$ vault-openvpn --auto-revoke --ovpn-key secret/data/vault-openvpn/ovpn --pki-mountpoint luzifer_io client workwork01.openvpn.luzifer.io
+```
+
+Mind the additional `/data` added inside the key directly after the mount. This is required due to the differences in API methods between the KV v1 and v2 backends.

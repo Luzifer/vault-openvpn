@@ -13,10 +13,11 @@ import (
 	"text/template"
 	"time"
 
-	dhparam "github.com/Luzifer/go-dhparam"
 	"github.com/hashicorp/vault/api"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
+
+	dhparam "github.com/Luzifer/go-dhparam"
 )
 
 func fetchCertificateBySerial(serial string) (*x509.Certificate, bool, bool, error) {
@@ -53,7 +54,12 @@ func fetchOVPNKey() (string, error) {
 		return "", errors.New("Got no data from backend")
 	}
 
-	key, ok := secret.Data["key"]
+	dmap := secret.Data
+	if mapv2, ok := secret.Data["data"]; ok {
+		dmap = mapv2.(map[string]interface{})
+	}
+
+	key, ok := dmap["key"]
 	if !ok {
 		return "", errors.New("Within specified secret no entry named 'key' was found")
 	}
