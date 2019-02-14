@@ -1,3 +1,8 @@
+# 1.9.0 / 2019-02-14
+
+  * Add support for Vault KVv2 backends
+  * Update dependencies
+
 # 1.8.0 / 2018-10-08
 
   * Deps: Update dependencies
