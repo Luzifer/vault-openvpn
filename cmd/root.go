@@ -116,5 +116,5 @@ func vaultTokenFromDisk() string {
 		return ""
 	}
 
-	return string(data)
+	return strings.TrimSpace(string(data))
 }
