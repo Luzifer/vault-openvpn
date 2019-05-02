@@ -1,3 +1,7 @@
+# 1.9.1 / 2019-05-02
+
+  * Fixes error when '~/.vault-token' contains a trailing newline
+
 # 1.9.0 / 2019-02-14
 
   * Add support for Vault KVv2 backends
