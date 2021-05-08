@@ -1,3 +1,7 @@
+# 1.10.1 / 2021-05-08
+
+  * Fix: Build needs GO111MODULE
+
 # 1.10.0 / 2021-05-08
 
   * Update dependencies
