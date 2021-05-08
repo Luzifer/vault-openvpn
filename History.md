@@ -1,3 +1,9 @@
+# 1.10.0 / 2021-05-08
+
+  * Update dependencies
+  * Update Dockerfile
+  * Remove vendoring
+
 # 1.9.1 / 2019-05-02
 
   * Fixes error when '~/.vault-token' contains a trailing newline
