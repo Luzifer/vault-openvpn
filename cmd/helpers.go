@@ -45,7 +45,6 @@ func fetchCertificateBySerial(serial string) (*x509.Certificate, bool, bool, err
 func fetchOVPNKey() (string, error) {
 	path := strings.Trim(viper.GetString("ovpn-key"), "/")
 	secret, err := client.Logical().Read(path)
-
 	if err != nil {
 		return "", err
 	}
@@ -110,7 +109,6 @@ func generateCertificate(fqdn string) (*templateVars, error) {
 		"common_name": fqdn,
 		"ttl":         viper.GetDuration("ttl").String(),
 	})
-
 	if err != nil {
 		return nil, err
 	}

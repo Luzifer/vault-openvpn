@@ -3,7 +3,7 @@ package cmd
 import (
 	"errors"
 
-	"github.com/hashicorp/vault/helper/certutil"
+	"github.com/hashicorp/vault/sdk/helper/certutil"
 	"github.com/spf13/cobra"
 )
 
