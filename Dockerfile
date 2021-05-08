@@ -1,16 +1,28 @@
-FROM golang:alpine
+FROM golang:alpine as builder
 
-LABEL maintainer "Knut Ahlers <knut@ahlers.me>"
-
-ADD . /go/src/github.com/Luzifer/vault-openvpn
+COPY . /go/src/github.com/Luzifer/vault-openvpn
 WORKDIR /go/src/github.com/Luzifer/vault-openvpn
 
 RUN set -ex \
- && apk add --update git ca-certificates \
- && go install -ldflags "-X main.version=$(git describe --tags || git rev-parse --short HEAD || echo dev)" \
- && apk del --purge git
+ && apk add --update git \
+ && go install \
+      -ldflags "-X main.version=$(git describe --tags --always || echo dev)" \
+      -mod=readonly
 
-WORKDIR /go/src/github.com/Luzifer/vault-openvpn/example/openvpn-sample
+FROM alpine:latest
 
-ENTRYPOINT ["/go/bin/vault-openvpn"]
+LABEL maintainer "Knut Ahlers <knut@ahlers.me>"
+
+RUN set -ex \
+ && apk --no-cache add \
+      ca-certificates
+
+COPY --from=builder /go/bin/vault-openvpn /usr/local/bin/vault-openvpn
+COPY --from=builder /go/src/github.com/Luzifer/vault-openvpn/example/openvpn-sample /usr/local/share/vault-openvpn
+
+WORKDIR /usr/local/share/vault-openvpn
+
+ENTRYPOINT ["/usr/local/bin/vault-openvpn"]
 CMD ["--"]
+
+# vim: set ft=Dockerfile:
